@@ -77,8 +77,8 @@ See `implementation-plan.md` for the full 11-phase breakdown and milestones. Upd
 
 - [x] Phase 0 — Setup & foundations
 - [x] Phase 1 — Data model & core schema
-- [ ] Phase 2 — Auth & roles
-- [ ] Phase 3 — Service user management
+- [x] Phase 2 — Auth & roles
+- [x] Phase 3 — Service user management
 - [ ] Phase 4 — Weekly planning
 - [ ] Phase 5 — Staff recording interface
 - [ ] Phase 6 — Calculations & compliance indicators

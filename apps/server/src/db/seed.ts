@@ -1,15 +1,31 @@
 import { WEEKDAYS } from '@care/shared';
 import { sql } from 'drizzle-orm';
+import { hashPassword } from '../auth/password';
 import { client, db } from './index';
-import { activityTypes, complianceSettings, dayEntries, serviceUsers, weekPlans } from './schema';
+import {
+  activityTypes,
+  complianceSettings,
+  dayEntries,
+  serviceUsers,
+  users,
+  weekPlans,
+} from './schema';
 
 /**
- * Idempotent seed: the standard activity list, a default compliance-settings
- * singleton, and a small set of sample service users with one fully-planned week
- * to prove the DayEntry structure. Re-running is safe (no duplicate rows).
- *
- * Users are intentionally NOT seeded here — password hashing is owned by Phase 2.
+ * Idempotent seed: one login user per role, the standard activity list, a default
+ * compliance-settings singleton, and a small set of sample service users with one
+ * fully-planned week to prove the DayEntry structure. Re-running is safe (no
+ * duplicate rows).
  */
+
+// Dev/test login accounts — one per role. All share DEV_PASSWORD. Documented in
+// .env.example. Idempotent via onConflictDoNothing on the unique email.
+const DEV_PASSWORD = 'Password123!';
+const DEV_USERS = [
+  { name: 'Morgan Manager', email: 'manager@example.com', role: 'MANAGER' as const },
+  { name: 'Sam Staff', email: 'staff@example.com', role: 'STAFF' as const },
+  { name: 'Avery Auditor', email: 'auditor@example.com', role: 'AUDITOR' as const },
+];
 
 // The standardised, admin-maintained activity list (CLAUDE.md / implementation plan).
 const ACTIVITY_NAMES = [
@@ -40,6 +56,13 @@ const SAMPLE_DAY_LINES = [
 ];
 
 await db.transaction(async (tx) => {
+  // 0. Login users — one per role. Hash up front, then insert idempotently.
+  const passwordHash = await hashPassword(DEV_PASSWORD);
+  await tx
+    .insert(users)
+    .values(DEV_USERS.map((u) => ({ ...u, passwordHash })))
+    .onConflictDoNothing({ target: users.email });
+
   // 1. Activity types — idempotent on the unique name.
   await tx
     .insert(activityTypes)

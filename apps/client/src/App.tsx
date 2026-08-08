@@ -1,28 +1,32 @@
-import { useEffect, useState } from 'react';
-import type { HealthStatus } from '@care/shared';
+import { Route, Routes } from 'react-router-dom';
+import { ProtectedRoute } from './auth/ProtectedRoute';
+import NavShell from './components/NavShell';
+import DashboardPage from './pages/DashboardPage';
+import LoginPage from './pages/LoginPage';
+import ServiceUserDetailPage from './pages/ServiceUserDetailPage';
+import ServiceUserFormPage from './pages/ServiceUserFormPage';
+import ServiceUsersPage from './pages/ServiceUsersPage';
 
+/**
+ * Route map. `/login` is public; everything else sits behind ProtectedRoute (auth)
+ * and the NavShell frame. Role-scoped sections pass `roles` to a nested guard.
+ */
 export default function App() {
-  const [health, setHealth] = useState<HealthStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then((data: HealthStatus) => setHealth(data))
-      .catch(() => setError('Could not reach the API'));
-  }, []);
-
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-6">
-      <h1 className="text-2xl font-semibold">Care 1-to-1 Hours Tracker</h1>
-      {error && <p className="text-red-600">{error}</p>}
-      {health ? (
-        <p role="status" className="text-green-700">
-          API status: {health.status} · DB: {health.db}
-        </p>
-      ) : (
-        !error && <p className="text-gray-500">Checking API…</p>
-      )}
-    </main>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<NavShell />}>
+          <Route path="/" element={<DashboardPage />} />
+          {/* Service user management is MANAGER-only (server-enforced too). */}
+          <Route element={<ProtectedRoute roles={['MANAGER']} />}>
+            <Route path="/service-users" element={<ServiceUsersPage />} />
+            <Route path="/service-users/new" element={<ServiceUserFormPage />} />
+            <Route path="/service-users/:id" element={<ServiceUserDetailPage />} />
+            <Route path="/service-users/:id/edit" element={<ServiceUserFormPage />} />
+          </Route>
+        </Route>
+      </Route>
+    </Routes>
   );
 }

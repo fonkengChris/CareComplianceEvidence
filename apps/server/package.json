@@ -14,12 +14,15 @@
   },
   "dependencies": {
     "@care/shared": "workspace:*",
+    "cookie-parser": "^1.4.7",
     "drizzle-orm": "^0.44.0",
     "express": "^5.0.0",
+    "jose": "^6.2.8",
     "postgres": "^3.4.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "drizzle-kit": "^0.31.0"
   }

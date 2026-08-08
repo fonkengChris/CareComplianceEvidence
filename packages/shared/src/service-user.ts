@@ -25,5 +25,12 @@ export const serviceUserCreateSchema = z.object({
   active: z.boolean().optional(),
 });
 
+/**
+ * PUT payload: every create field is optional so a manager can patch just what
+ * changed. `.partial()` keeps the same validation rules on any field that IS sent.
+ */
+export const serviceUserUpdateSchema = serviceUserCreateSchema.partial();
+
 export type ServiceUser = z.infer<typeof serviceUserSchema>;
 export type ServiceUserCreate = z.infer<typeof serviceUserCreateSchema>;
+export type ServiceUserUpdate = z.infer<typeof serviceUserUpdateSchema>;

@@ -10,5 +10,6 @@ export * from './week-plan';
 export * from './day-entry';
 export * from './activity-type';
 export * from './user';
+export * from './auth';
 export * from './compliance';
 export * from './audit';
