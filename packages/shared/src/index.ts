@@ -1,13 +1,14 @@
-import { z } from 'zod';
-
 /**
- * Placeholder shared schema for Phase 0 — proves cross-package imports compile
- * and are used by both the API (response validation) and the web app (typed fetch).
- * Real domain schemas (ServiceUser, WeekPlan, DayEntry, ...) arrive in Phase 1.
+ * Public surface of `@care/shared`. The tsconfig path alias resolves `@care/shared`
+ * to this file only, so every domain schema/type must be re-exported here. The
+ * server imports schemas + types (validation); the client imports types only.
  */
-export const healthStatusSchema = z.object({
-  status: z.literal('ok'),
-  db: z.enum(['up', 'down']),
-});
-
-export type HealthStatus = z.infer<typeof healthStatusSchema>;
+export * from './enums';
+export * from './health';
+export * from './service-user';
+export * from './week-plan';
+export * from './day-entry';
+export * from './activity-type';
+export * from './user';
+export * from './compliance';
+export * from './audit';

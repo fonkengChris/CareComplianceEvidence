@@ -76,7 +76,7 @@ Every new API route must have explicit role middleware. Never rely on frontend h
 See `implementation-plan.md` for the full 11-phase breakdown and milestones. Update this section as phases complete:
 
 - [x] Phase 0 — Setup & foundations
-- [ ] Phase 1 — Data model & core schema
+- [x] Phase 1 — Data model & core schema
 - [ ] Phase 2 — Auth & roles
 - [ ] Phase 3 — Service user management
 - [ ] Phase 4 — Weekly planning
@@ -104,9 +104,15 @@ In scope for v1: auth, service user CRUD, weekly plans, activity dropdown + time
 bun install          # install all workspace deps
 bun run dev           # run web + api concurrently
 bun test              # run all tests
-bunx drizzle-kit generate   # create a new migration
-bunx drizzle-kit push       # apply migrations
+bun run typecheck     # typecheck every workspace
+bun run db:generate   # generate a versioned SQL migration from schema.ts
+bun run db:migrate    # apply committed migrations (auditable; preferred over db:push)
+bun run db:seed       # seed activities, compliance settings + sample data (idempotent)
 ```
+
+Migration workflow is **generate → migrate → seed** (versioned SQL, not `db:push`) for an
+auditable, reproducible schema history. `db:push` remains available for throwaway local
+prototyping only.
 
 ---
 
