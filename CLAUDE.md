@@ -75,7 +75,7 @@ Every new API route must have explicit role middleware. Never rely on frontend h
 
 See `implementation-plan.md` for the full 11-phase breakdown and milestones. Update this section as phases complete:
 
-- [ ] Phase 0 — Setup & foundations
+- [x] Phase 0 — Setup & foundations
 - [ ] Phase 1 — Data model & core schema
 - [ ] Phase 2 — Auth & roles
 - [ ] Phase 3 — Service user management
