@@ -1,0 +1,4 @@
+# Register happy-dom globally so component tests (React Testing Library) have a DOM.
+# Harmless for API tests, which simply don't touch the DOM globals.
+[test]
+preload = ["./apps/web/happydom.ts"]
