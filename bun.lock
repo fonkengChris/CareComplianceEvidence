@@ -14,23 +14,8 @@
         "typescript-eslint": "^8.18.0",
       },
     },
-    "apps/api": {
-      "name": "@care/api",
-      "version": "0.0.0",
-      "dependencies": {
-        "@care/shared": "workspace:*",
-        "drizzle-orm": "^0.44.0",
-        "express": "^5.0.0",
-        "postgres": "^3.4.0",
-        "zod": "^4.0.0",
-      },
-      "devDependencies": {
-        "@types/express": "^5.0.0",
-        "drizzle-kit": "^0.31.0",
-      },
-    },
-    "apps/web": {
-      "name": "@care/web",
+    "apps/client": {
+      "name": "@care/client",
       "version": "0.0.0",
       "dependencies": {
         "@care/shared": "workspace:*",
@@ -47,6 +32,21 @@
         "@vitejs/plugin-react": "^4.3.0",
         "tailwindcss": "^4.0.0",
         "vite": "^6.0.0",
+      },
+    },
+    "apps/server": {
+      "name": "@care/server",
+      "version": "0.0.0",
+      "dependencies": {
+        "@care/shared": "workspace:*",
+        "drizzle-orm": "^0.44.0",
+        "express": "^5.0.0",
+        "postgres": "^3.4.0",
+        "zod": "^4.0.0",
+      },
+      "devDependencies": {
+        "@types/express": "^5.0.0",
+        "drizzle-kit": "^0.31.0",
       },
     },
     "packages/shared": {
@@ -98,11 +98,11 @@
 
     "@babel/types": ["@babel/types@7.29.8", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg=="],
 
-    "@care/api": ["@care/api@workspace:apps/api"],
+    "@care/client": ["@care/client@workspace:apps/client"],
+
+    "@care/server": ["@care/server@workspace:apps/server"],
 
     "@care/shared": ["@care/shared@workspace:packages/shared"],
-
-    "@care/web": ["@care/web@workspace:apps/web"],
 
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.10.2", "", {}, "sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w=="],
 

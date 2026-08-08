@@ -21,7 +21,7 @@ One-sentence spec: *A mobile-friendly React/TypeScript and Bun/PostgreSQL applic
 - **ORM:** Drizzle ORM + Drizzle Kit for migrations
 - **PDF export:** @react-pdf/renderer (fallback: Puppeteer)
 - **Testing:** `bun test` for unit + component tests (React Testing Library under a DOM env, e.g. happy-dom) — do not add Jest/Vitest. **Component tests are the default** and should cover most functionality; reserve end-to-end tests (Playwright) for the few flows that genuinely need a full stack (e.g. login→record→report, PDF download).
-- **Monorepo layout:** Bun workspaces — `apps/web`, `apps/api`, `packages/shared` (shared Zod schemas + types)
+- **Monorepo layout:** Bun workspaces — `apps/client`, `apps/server`, `packages/shared` (shared Zod schemas + types)
 
 ---
 

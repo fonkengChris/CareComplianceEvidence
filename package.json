@@ -10,8 +10,8 @@
     "lint": "eslint .",
     "typecheck": "bun run --filter '*' typecheck",
     "format": "prettier --write .",
-    "db:generate": "bun run --filter '@care/api' db:generate",
-    "db:push": "bun run --filter '@care/api' db:push"
+    "db:generate": "bun run --filter '@care/server' db:generate",
+    "db:push": "bun run --filter '@care/server' db:push"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

@@ -40,7 +40,7 @@ Drizzle is recommended over Mongoose/Prisma here because it's lightweight, fully
 - **React + TypeScript**, built and served via **Bun** (`bun run` / `bunx`)
 - **Vite** as the build tool (Bun-compatible, fast dev server, works cleanly with React + TS)
 - **Styling**: **Tailwind CSS** for the whole UI — utility-first, fast to build, easy responsive breakpoints for the mobile-first staff recording screens and a slightly denser table/grid layer for the manager planning view
-- **Component library**: **shadcn/ui** — accessible, unstyled-by-default components (built on Radix UI primitives) that are copied into the codebase rather than installed as a black-box dependency. This keeps components fully editable and Tailwind-native, fits the STAFF/MANAGER/AUDITOR views cleanly, and provides ready-made primitives (dialogs, dropdowns, tables, forms, toasts) that pair naturally with React Hook Form + Zod. Because the code lives in `apps/web`, it stays in-repo and versioned with everything else.
+- **Component library**: **shadcn/ui** — accessible, unstyled-by-default components (built on Radix UI primitives) that are copied into the codebase rather than installed as a black-box dependency. This keeps components fully editable and Tailwind-native, fits the STAFF/MANAGER/AUDITOR views cleanly, and provides ready-made primitives (dialogs, dropdowns, tables, forms, toasts) that pair naturally with React Hook Form + Zod. Because the code lives in `apps/client`, it stays in-repo and versioned with everything else.
 - **React Router** for role-based navigation (STAFF / MANAGER / AUDITOR views)
 - **React Query (TanStack Query)** for API state, caching weekly plan data, and handling the auto-calculated totals reactively
 - **React Hook Form + Zod** for form validation (weekly plan creation, activity entry) — Zod schemas can be shared between frontend and backend for consistent validation rules
@@ -85,8 +85,8 @@ Drizzle is recommended over Mongoose/Prisma here because it's lightweight, fully
 ```
 care-tracker/
 ├── apps/
-│   ├── web/            # React + TS frontend (Vite)
-│   └── api/            # TS backend on Bun (Hono/Express)
+│   ├── client/         # React + TS frontend (Vite)
+│   └── server/         # TS backend on Bun (Hono/Express)
 ├── packages/
 │   └── shared/         # Shared Zod schemas + TS types (ServiceUser, WeekPlan, DayEntry, ActivityType)
 ├── drizzle/             # Postgres schema + migrations

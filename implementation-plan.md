@@ -12,9 +12,9 @@ Each phase lists its goal, deliverables, and the milestone that marks it "done."
 
 **Goal:** A working, empty skeleton everyone can build on.
 
-- Initialise Bun monorepo (`apps/web`, `apps/api`, `packages/shared`)
-- Set up Vite + React + TS in `apps/web`
-- Set up Hono/Express + TS in `apps/api`, running on Bun
+- Initialise Bun monorepo (`apps/client`, `apps/server`, `packages/shared`)
+- Set up Vite + React + TS in `apps/client`
+- Set up Hono/Express + TS in `apps/server`, running on Bun
 - Configure PostgreSQL locally (Docker Compose recommended) + Drizzle Kit
 - Configure ESLint, Prettier, `bun test` across the monorepo
 - Basic CI: install, lint, typecheck, test on push
@@ -164,7 +164,7 @@ Each phase lists its goal, deliverables, and the milestone that marks it "done."
 
 - Production Postgres instance (managed service recommended)
 - Environment config/secrets for JWT, DB connection
-- Build and deploy `apps/api` and `apps/web` (containerised or platform-specific, e.g. Fly.io/Render for API, static hosting for the frontend)
+- Build and deploy `apps/server` and `apps/client` (containerised or platform-specific, e.g. Fly.io/Render for the server, static hosting for the client)
 - Basic uptime/error monitoring
 
 **Milestone:** MVP is accessible at a production URL, a manager and a staff user can complete a full weekly cycle (plan → record → report) against the production database.
