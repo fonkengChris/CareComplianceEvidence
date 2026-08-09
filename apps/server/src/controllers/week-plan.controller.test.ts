@@ -63,7 +63,17 @@ const plan: WeekPlan = {
   createdAt: '2026-08-08T00:00:00.000Z',
   updatedAt: '2026-08-08T00:00:00.000Z',
 };
-const planWithEntries: WeekPlanWithEntries = { ...plan, dayEntries: [] };
+const planWithEntries: WeekPlanWithEntries = {
+  ...plan,
+  dayEntries: [],
+  compliance: {
+    deliveredMinutes: 0,
+    contractedMinutes: 0,
+    remainingMinutes: 0,
+    deliveryPct: 0,
+    status: 'ATTENTION',
+  },
+};
 
 function mockRes() {
   const res = {

@@ -42,6 +42,13 @@ const planWithEntries = {
       updatedAt: '2026-08-08T00:00:00.000Z',
     },
   ],
+  compliance: {
+    deliveredMinutes: 0,
+    contractedMinutes: 1200,
+    remainingMinutes: 1200,
+    deliveryPct: 0,
+    status: 'ATTENTION',
+  },
 };
 
 const activityTypes = [
@@ -125,6 +132,12 @@ describe('RecordWeekPage', () => {
     renderRecord();
     expect(await screen.findByText('Shopping')).toBeDefined();
     expect(screen.getByText('Allocated: 60 min')).toBeDefined();
+  });
+
+  it('shows the backend-computed compliance status badge', async () => {
+    mockApi('STAFF');
+    renderRecord();
+    expect(await screen.findByLabelText('Compliance status: Attention Required')).toBeDefined();
   });
 
   it('records time, outcome and comment via a PATCH', async () => {

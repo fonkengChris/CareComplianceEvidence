@@ -2,6 +2,7 @@ import { type Outcome, type Weekday, OUTCOMES, WEEKDAYS } from '@care/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import WeekComplianceSummary from '../components/WeekComplianceSummary';
 import { fetchActivityTypes } from '../lib/activity-types';
 import { addDayEntry, fetchWeekPlan, recordDayEntry } from '../lib/week-plans';
 
@@ -128,6 +129,8 @@ export default function RecordWeekPage() {
   return (
     <section className="mx-auto flex max-w-xl flex-col gap-4">
       <h1 className="text-2xl font-semibold">Record — week of {plan.data.weekCommencing}</h1>
+
+      <WeekComplianceSummary compliance={plan.data.compliance} />
 
       {record.isError && (
         <p role="alert" className="text-red-600">

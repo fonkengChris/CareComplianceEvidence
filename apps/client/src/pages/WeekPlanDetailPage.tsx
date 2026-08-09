@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import WeekComplianceSummary from '../components/WeekComplianceSummary';
 import { fetchActivityTypes } from '../lib/activity-types';
 import { duplicateWeekPlan, fetchWeekPlan, replaceDayEntries } from '../lib/week-plans';
 
@@ -139,6 +140,8 @@ export default function WeekPlanDetailPage() {
           )}
         </div>
       </div>
+
+      <WeekComplianceSummary compliance={plan.data.compliance} />
 
       {plan.data.notes && <p className="text-gray-700">{plan.data.notes}</p>}
 

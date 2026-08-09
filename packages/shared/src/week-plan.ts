@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { weekComplianceSchema } from './compliance';
 import { dayEntrySchema } from './day-entry';
 
 /** A calendar date with no time-of-day, e.g. `2026-08-17`. */
@@ -37,9 +38,15 @@ export const weekPlanDuplicateSchema = z.object({
   weekCommencing: isoDate,
 });
 
-/** GET-one / planner response: the plan with its day-entry lines attached. */
+/**
+ * GET-one / planner response: the plan with its day-entry lines attached, plus the
+ * backend-computed `compliance` block (delivered/remaining minutes + 🟢/🟡/🔴 status).
+ * Embedding compliance here means every plan read/write path carries a fresh figure,
+ * so it recalculates on every `DayEntry` write without a separate call.
+ */
 export const weekPlanWithEntriesSchema = weekPlanSchema.extend({
   dayEntries: z.array(dayEntrySchema),
+  compliance: weekComplianceSchema,
 });
 
 export type WeekPlan = z.infer<typeof weekPlanSchema>;

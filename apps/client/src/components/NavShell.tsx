@@ -16,6 +16,7 @@ export default function NavShell() {
           <Link to="/">Dashboard</Link>
           {user?.role === 'MANAGER' && <Link to="/service-users">Service Users</Link>}
           {user?.role === 'MANAGER' && <Link to="/users">Users</Link>}
+          {user?.role === 'MANAGER' && <Link to="/compliance-settings">Compliance</Link>}
           {(user?.role === 'MANAGER' || user?.role === 'AUDITOR') && (
             <Link to="/reports">Reports</Link>
           )}

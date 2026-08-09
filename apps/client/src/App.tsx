@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import NavShell from './components/NavShell';
+import ComplianceSettingsPage from './pages/ComplianceSettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import RecordWeekPage from './pages/RecordWeekPage';
@@ -42,6 +43,8 @@ export default function App() {
             />
             <Route path="/week-plans/:id" element={<WeekPlanDetailPage />} />
             <Route path="/week-plans/:id/edit" element={<WeekPlanFormPage />} />
+            {/* Compliance thresholds (Phase 6) — MANAGER-only (server-enforced too). */}
+            <Route path="/compliance-settings" element={<ComplianceSettingsPage />} />
           </Route>
         </Route>
       </Route>

@@ -1,4 +1,5 @@
 import {
+  type ComplianceSettings,
   type DayEntry,
   type DayEntryInput,
   type DayEntryRecord,
@@ -15,7 +16,8 @@ import {
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { isUniqueViolation } from '../db/errors';
-import { dayEntries, staffAssignments, weekPlans } from '../db/schema';
+import { dayEntries, serviceUsers, staffAssignments, weekPlans } from '../db/schema';
+import { computeWeekCompliance, getComplianceSettings } from './compliance.service';
 
 /**
  * Week-plan service — the only layer that touches the DB for week plans and their
@@ -138,15 +140,39 @@ export async function serviceUserIdForPlan(weekPlanId: string): Promise<string |
   return row?.serviceUserId ?? null;
 }
 
-/** Fetch a plan with its day entries (planner order), or null if the id is unknown. */
-export async function getWeekPlan(id: string): Promise<WeekPlanWithEntries | null> {
-  const [plan] = await db.select().from(weekPlans).where(eq(weekPlans.id, id)).limit(1);
-  if (!plan) return null;
-  const entryRows = await db.select().from(dayEntries).where(eq(dayEntries.weekPlanId, id));
+/**
+ * Assemble the public plan-with-entries shape, attaching the backend-computed compliance
+ * block. Pure (no DB) so every write path can funnel through it after fetching the plan's
+ * `contractedHours` and the settings — which is what keeps compliance recalculated on every
+ * `DayEntry` change without duplicating the maths.
+ */
+export function buildWeekPlanWithEntries(
+  plan: WeekPlanRow,
+  entryRows: DayEntryRow[],
+  contractedHours: number,
+  settings: ComplianceSettings,
+): WeekPlanWithEntries {
+  const entries = sortDayEntries(entryRows.map(toPublicDayEntry));
   return {
     ...toPublicWeekPlan(plan),
-    dayEntries: sortDayEntries(entryRows.map(toPublicDayEntry)),
+    dayEntries: entries,
+    compliance: computeWeekCompliance(entries, contractedHours, settings),
   };
+}
+
+/** Fetch a plan with its day entries (planner order) + compliance, or null if id is unknown. */
+export async function getWeekPlan(id: string): Promise<WeekPlanWithEntries | null> {
+  const [row] = await db
+    .select({ plan: weekPlans, contractedHours: serviceUsers.contractedHours })
+    .from(weekPlans)
+    .innerJoin(serviceUsers, eq(serviceUsers.id, weekPlans.serviceUserId))
+    .where(eq(weekPlans.id, id))
+    .limit(1);
+  if (!row) return null;
+  const entryRows = await db.select().from(dayEntries).where(eq(dayEntries.weekPlanId, id));
+  const settings = await getComplianceSettings();
+  // `contractedHours` is a numeric column → JS string; coerce to a number for the maths.
+  return buildWeekPlanWithEntries(row.plan, entryRows, Number(row.contractedHours), settings);
 }
 
 export type ConflictResult<T> = { ok: true; value: T } | { ok: false; reason: 'conflict' };
@@ -209,28 +235,22 @@ export async function replaceDayEntries(
   entries: DayEntryInput[],
 ): Promise<ReplaceEntriesResult> {
   try {
-    const result = await db.transaction(async (tx) => {
+    const found = await db.transaction(async (tx) => {
       const [plan] = await tx
-        .select()
+        .select({ id: weekPlans.id })
         .from(weekPlans)
         .where(eq(weekPlans.id, weekPlanId))
         .limit(1);
-      if (!plan) return null;
+      if (!plan) return false;
 
       await tx.delete(dayEntries).where(eq(dayEntries.weekPlanId, weekPlanId));
       const inserts = buildEntryInserts(weekPlanId, entries);
       if (inserts.length > 0) await tx.insert(dayEntries).values(inserts);
-
-      const entryRows = await tx
-        .select()
-        .from(dayEntries)
-        .where(eq(dayEntries.weekPlanId, weekPlanId));
-      return {
-        ...toPublicWeekPlan(plan),
-        dayEntries: sortDayEntries(entryRows.map(toPublicDayEntry)),
-      };
+      return true;
     });
-    return result ? { ok: true, value: result } : { ok: false, reason: 'not_found' };
+    if (!found) return { ok: false, reason: 'not_found' };
+    // Re-read through getWeekPlan so the response carries fresh compliance figures.
+    return { ok: true, value: (await getWeekPlan(weekPlanId)) as WeekPlanWithEntries };
   } catch (err) {
     if (isUniqueViolation(err)) return { ok: false, reason: 'conflict' };
     throw err;
@@ -253,7 +273,7 @@ export async function duplicateWeekPlan(
   weekCommencing: string,
 ): Promise<DuplicateResult> {
   try {
-    const result = await db.transaction(async (tx) => {
+    const createdId = await db.transaction(async (tx) => {
       const [source] = await tx
         .select()
         .from(weekPlans)
@@ -281,17 +301,10 @@ export async function duplicateWeekPlan(
         })),
       );
       if (copies.length > 0) await tx.insert(dayEntries).values(copies);
-
-      const entryRows = await tx
-        .select()
-        .from(dayEntries)
-        .where(eq(dayEntries.weekPlanId, created.id));
-      return {
-        ...toPublicWeekPlan(created),
-        dayEntries: sortDayEntries(entryRows.map(toPublicDayEntry)),
-      };
+      return created.id;
     });
-    return result ? { ok: true, value: result } : { ok: false, reason: 'not_found' };
+    if (createdId === null) return { ok: false, reason: 'not_found' };
+    return { ok: true, value: (await getWeekPlan(createdId)) as WeekPlanWithEntries };
   } catch (err) {
     if (isUniqueViolation(err)) return { ok: false, reason: 'conflict' };
     throw err;
@@ -342,13 +355,13 @@ export async function addStaffDayEntry(
   weekPlanId: string,
   input: DayEntryStaffCreate,
 ): Promise<RecordResult> {
-  const result = await db.transaction(async (tx) => {
+  const found = await db.transaction(async (tx) => {
     const [plan] = await tx
-      .select()
+      .select({ id: weekPlans.id })
       .from(weekPlans)
       .where(eq(weekPlans.id, weekPlanId))
       .limit(1);
-    if (!plan) return null;
+    if (!plan) return false;
 
     const existing = await tx
       .select({ lineNumber: dayEntries.lineNumber })
@@ -366,15 +379,8 @@ export async function addStaffDayEntry(
       outcome: input.outcome,
       comment: input.comment ?? null,
     });
-
-    const entryRows = await tx
-      .select()
-      .from(dayEntries)
-      .where(eq(dayEntries.weekPlanId, weekPlanId));
-    return {
-      ...toPublicWeekPlan(plan),
-      dayEntries: sortDayEntries(entryRows.map(toPublicDayEntry)),
-    };
+    return true;
   });
-  return result ? { ok: true, value: result } : { ok: false, reason: 'not_found' };
+  if (!found) return { ok: false, reason: 'not_found' };
+  return { ok: true, value: (await getWeekPlan(weekPlanId)) as WeekPlanWithEntries };
 }

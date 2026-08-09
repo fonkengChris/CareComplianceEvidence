@@ -38,6 +38,13 @@ const planWithEntries = {
       updatedAt: '2026-08-08T00:00:00.000Z',
     },
   ],
+  compliance: {
+    deliveredMinutes: 0,
+    contractedMinutes: 1200,
+    remainingMinutes: 1200,
+    deliveryPct: 0,
+    status: 'ATTENTION',
+  },
 };
 
 const activityTypes = [
@@ -119,6 +126,14 @@ describe('WeekPlanDetailPage', () => {
     expect(await screen.findByText('Week of 2026-08-17')).toBeDefined();
     expect(await screen.findByText('Monday')).toBeDefined();
     expect(await screen.findByDisplayValue('Shopping trip')).toBeDefined();
+  });
+
+  it('shows the backend-computed compliance summary and status badge', async () => {
+    mockApi('MANAGER');
+    renderPlanner();
+    // Delivered/contracted come straight from the mocked compliance block, not derived.
+    expect(await screen.findByLabelText('Compliance status: Attention Required')).toBeDefined();
+    expect(screen.getByText('0%')).toBeDefined(); // deliveryPct straight from the mock
   });
 
   it('saves the whole plan with a single bulk PUT', async () => {
