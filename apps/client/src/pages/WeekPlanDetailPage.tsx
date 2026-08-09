@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import ExportReportButton from '../components/ExportReportButton';
 import WeekComplianceSummary from '../components/WeekComplianceSummary';
 import { fetchActivityTypes } from '../lib/activity-types';
 import { duplicateWeekPlan, fetchWeekPlan, replaceDayEntries } from '../lib/week-plans';
@@ -42,6 +43,8 @@ export default function WeekPlanDetailPage() {
   const isManager = user?.role === 'MANAGER';
   // STAFF and MANAGER can record what happened; AUDITOR is read-only.
   const canRecord = user?.role === 'MANAGER' || user?.role === 'STAFF';
+  // Reporting mirrors the weekly summary: managers and auditors, never staff.
+  const canExport = user?.role === 'MANAGER' || user?.role === 'AUDITOR';
 
   const plan = useQuery({
     queryKey: ['week-plans', id],
@@ -137,6 +140,12 @@ export default function WeekPlanDetailPage() {
             >
               Edit details
             </Link>
+          )}
+          {canExport && (
+            <ExportReportButton
+              weekPlanId={plan.data.id}
+              className="rounded border border-gray-300 px-3 py-2 disabled:opacity-50"
+            />
           )}
         </div>
       </div>

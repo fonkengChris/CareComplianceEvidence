@@ -17,6 +17,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { isUniqueViolation } from '../db/errors';
 import { dayEntries, serviceUsers, staffAssignments, weekPlans } from '../db/schema';
+import { buildFieldChanges, recordAudit } from './audit.service';
 import { computeWeekCompliance, getComplianceSettings } from './compliance.service';
 
 /**
@@ -319,11 +320,13 @@ export type RecordResult =
  * Staff recording (Phase 5): set ONLY `timeSpent`, `outcome` and `comment` on an
  * existing planned line — never the activity, allocated time, or line position. Returns
  * the refreshed plan (so the client sees the recomputed `reviewHint`), or `not_found` if
- * the entry id is unknown.
+ * the entry id is unknown. The tracked-field changes (`timeSpent`, `outcome`) are audited
+ * in the same transaction as the write (Phase 9), so the trail can never drift.
  */
 export async function recordDayEntry(
   entryId: string,
   input: DayEntryRecord,
+  actorUserId: string,
 ): Promise<RecordResult> {
   const patch: Partial<typeof dayEntries.$inferInsert> = {
     updatedAt: new Date(),
@@ -333,11 +336,33 @@ export async function recordDayEntry(
   // `comment` is optional in the body; only touch it when the caller sent it.
   if (input.comment !== undefined) patch.comment = input.comment;
 
-  const [row] = await db
-    .update(dayEntries)
-    .set(patch)
-    .where(eq(dayEntries.id, entryId))
-    .returning();
+  const row = await db.transaction(async (tx) => {
+    const [before] = await tx
+      .select()
+      .from(dayEntries)
+      .where(eq(dayEntries.id, entryId))
+      .limit(1);
+    if (!before) return null;
+
+    const [after] = await tx
+      .update(dayEntries)
+      .set(patch)
+      .where(eq(dayEntries.id, entryId))
+      .returning();
+
+    const changes = buildFieldChanges(before, after, ['timeSpent', 'outcome']);
+    await recordAudit(
+      tx,
+      changes.map((c) => ({
+        ...c,
+        userId: actorUserId,
+        action: 'RECORD',
+        entityType: 'DAY_ENTRY' as const,
+        entityId: entryId,
+      })),
+    );
+    return after;
+  });
   if (!row) return { ok: false, reason: 'not_found' };
 
   // The entry references a plan (FK), so getWeekPlan is guaranteed to resolve.
@@ -354,6 +379,7 @@ export async function recordDayEntry(
 export async function addStaffDayEntry(
   weekPlanId: string,
   input: DayEntryStaffCreate,
+  actorUserId: string,
 ): Promise<RecordResult> {
   const found = await db.transaction(async (tx) => {
     const [plan] = await tx
@@ -369,16 +395,30 @@ export async function addStaffDayEntry(
       .where(and(eq(dayEntries.weekPlanId, weekPlanId), eq(dayEntries.day, input.day)));
     const nextLine = existing.reduce((max, e) => Math.max(max, e.lineNumber), 0) + 1;
 
-    await tx.insert(dayEntries).values({
-      weekPlanId,
-      day: input.day,
-      lineNumber: nextLine,
-      activityTypeId: input.activityTypeId,
-      timeAllocated: null,
-      timeSpent: input.timeSpent,
-      outcome: input.outcome,
-      comment: input.comment ?? null,
-    });
+    const [created] = await tx
+      .insert(dayEntries)
+      .values({
+        weekPlanId,
+        day: input.day,
+        lineNumber: nextLine,
+        activityTypeId: input.activityTypeId,
+        timeAllocated: null,
+        timeSpent: input.timeSpent,
+        outcome: input.outcome,
+        comment: input.comment ?? null,
+      })
+      .returning();
+
+    // An ad-hoc line is a brand-new record: log its creation (key facts as `to`, no `from`).
+    await recordAudit(tx, [
+      {
+        userId: actorUserId,
+        action: 'CREATE',
+        entityType: 'DAY_ENTRY' as const,
+        entityId: created.id,
+        toValue: `${input.outcome} · ${input.timeSpent}min`,
+      },
+    ]);
     return true;
   });
   if (!found) return { ok: false, reason: 'not_found' };

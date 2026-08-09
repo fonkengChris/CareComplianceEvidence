@@ -45,7 +45,11 @@ export async function update(req: Request, res: Response): Promise<void> {
     res.status(400).json({ error: 'Invalid service user' });
     return;
   }
-  const updated = await serviceUserService.updateServiceUser(String(req.params.id), parsed.data);
+  const updated = await serviceUserService.updateServiceUser(
+    String(req.params.id),
+    parsed.data,
+    req.user!.sub,
+  );
   if (!updated) {
     res.status(404).json({ error: 'Service user not found' });
     return;
@@ -60,7 +64,11 @@ export async function setActive(req: Request, res: Response): Promise<void> {
     res.status(400).json({ error: 'active must be a boolean' });
     return;
   }
-  const updated = await serviceUserService.setServiceUserActive(String(req.params.id), active);
+  const updated = await serviceUserService.setServiceUserActive(
+    String(req.params.id),
+    active,
+    req.user!.sub,
+  );
   if (!updated) {
     res.status(404).json({ error: 'Service user not found' });
     return;

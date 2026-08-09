@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import * as reportController from '../controllers/report.controller';
 import * as weekPlanController from '../controllers/week-plan.controller';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { requireAssignment } from '../middleware/require-assignment';
@@ -19,6 +20,15 @@ const canRecord = requireRole('STAFF', 'MANAGER');
 
 weekPlanRouter.get('/', requireAuth, canRead, weekPlanController.list);
 weekPlanRouter.get('/:id', requireAuth, canRead, weekPlanController.getById);
+// Commissioner PDF report (Phase 8): reporting is MANAGER/AUDITOR only, matching the
+// weekly summary — STAFF are excluded. Distinct `/:id/report` suffix, so it never shadows
+// `GET /:id`. Returns the report DATA; the client renders the PDF (CLAUDE.md-owned figures).
+weekPlanRouter.get(
+  '/:id/report',
+  requireAuth,
+  requireRole('MANAGER', 'AUDITOR'),
+  reportController.getWeekPlanReport,
+);
 weekPlanRouter.post('/', requireAuth, canWrite, weekPlanController.create);
 weekPlanRouter.put('/:id', requireAuth, canWrite, weekPlanController.update);
 // Planning: manager bulk-replaces the whole set of planned lines.

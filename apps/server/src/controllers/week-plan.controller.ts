@@ -130,7 +130,11 @@ export async function recordDayEntry(req: Request, res: Response): Promise<void>
     res.status(400).json({ error: 'Invalid recording' });
     return;
   }
-  const result = await weekPlanService.recordDayEntry(String(req.params.entryId), parsed.data);
+  const result = await weekPlanService.recordDayEntry(
+    String(req.params.entryId),
+    parsed.data,
+    req.user!.sub,
+  );
   if (!result.ok) {
     res.status(404).json({ error: 'Day entry not found' });
     return;
@@ -148,7 +152,11 @@ export async function addDayEntry(req: Request, res: Response): Promise<void> {
     res.status(400).json({ error: 'Invalid activity' });
     return;
   }
-  const result = await weekPlanService.addStaffDayEntry(String(req.params.id), parsed.data);
+  const result = await weekPlanService.addStaffDayEntry(
+    String(req.params.id),
+    parsed.data,
+    req.user!.sub,
+  );
   if (!result.ok) {
     res.status(404).json({ error: 'Week plan not found' });
     return;

@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import NavShell from './components/NavShell';
+import AuditHistoryPage from './pages/AuditHistoryPage';
 import ComplianceSettingsPage from './pages/ComplianceSettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
@@ -25,9 +26,10 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<NavShell />}>
           <Route path="/" element={<DashboardPage />} />
-          {/* Manager summary (Phase 7): cross-service-user weekly view, read-only for auditors. */}
+          {/* Manager summary (Phase 7) + audit history (Phase 9): read-only for auditors. */}
           <Route element={<ProtectedRoute roles={['MANAGER', 'AUDITOR']} />}>
             <Route path="/reports" element={<ManagerSummaryPage />} />
+            <Route path="/audit" element={<AuditHistoryPage />} />
           </Route>
           {/* Staff recording (Phase 5): STAFF (scoped to their group) and managers. */}
           <Route element={<ProtectedRoute roles={['STAFF', 'MANAGER']} />}>

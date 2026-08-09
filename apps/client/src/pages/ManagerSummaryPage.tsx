@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import ComplianceBadge from '../components/ComplianceBadge';
+import ExportReportButton from '../components/ExportReportButton';
 import { fetchWeeklySummary } from '../lib/summary';
 
 /**
@@ -195,9 +196,15 @@ function SummaryRow({
           <td className="px-4 py-3" colSpan={COLUMN_COUNT}>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-gray-700">Activity breakdown</h2>
-              <Link to={`/week-plans/${weekPlanId}`} className="text-sm text-blue-700 underline">
-                View plan
-              </Link>
+              <div className="flex items-center gap-3">
+                <ExportReportButton
+                  weekPlanId={weekPlanId}
+                  className="text-sm text-blue-700 underline disabled:opacity-50"
+                />
+                <Link to={`/week-plans/${weekPlanId}`} className="text-sm text-blue-700 underline">
+                  View plan
+                </Link>
+              </div>
             </div>
             {row.activityBreakdown.length === 0 ? (
               <p className="text-sm text-gray-500">No activities recorded.</p>

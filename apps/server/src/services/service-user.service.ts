@@ -7,6 +7,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { serviceUsers } from '../db/schema';
+import { buildFieldChanges, recordAudit } from './audit.service';
 
 /**
  * Service-user service — the only layer that touches the DB for service users
@@ -72,11 +73,14 @@ export async function createServiceUser(input: ServiceUserCreate): Promise<Servi
 
 /**
  * Update the given fields of a service user. Only fields present in `input` are set;
- * returns null when no row matches the id.
+ * returns null when no row matches the id. The one tracked field here — `contractedHours`
+ * — is audited in the same transaction as the write (Phase 9); other edits (name, address,
+ * active) produce no audit rows.
  */
 export async function updateServiceUser(
   id: string,
   input: ServiceUserUpdate,
+  actorUserId: string,
 ): Promise<ServiceUser | null> {
   const patch: Partial<typeof serviceUsers.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) patch.name = input.name;
@@ -84,7 +88,33 @@ export async function updateServiceUser(
   if (input.contractedHours !== undefined) patch.contractedHours = input.contractedHours.toString();
   if (input.active !== undefined) patch.active = input.active;
 
-  const [row] = await db.update(serviceUsers).set(patch).where(eq(serviceUsers.id, id)).returning();
+  const row = await db.transaction(async (tx) => {
+    const [before] = await tx
+      .select()
+      .from(serviceUsers)
+      .where(eq(serviceUsers.id, id))
+      .limit(1);
+    if (!before) return null;
+
+    const [after] = await tx
+      .update(serviceUsers)
+      .set(patch)
+      .where(eq(serviceUsers.id, id))
+      .returning();
+
+    const changes = buildFieldChanges(before, after, ['contractedHours']);
+    await recordAudit(
+      tx,
+      changes.map((c) => ({
+        ...c,
+        userId: actorUserId,
+        action: 'UPDATE',
+        entityType: 'SERVICE_USER' as const,
+        entityId: id,
+      })),
+    );
+    return after;
+  });
   return row ? toPublicServiceUser(row) : null;
 }
 
@@ -92,6 +122,7 @@ export async function updateServiceUser(
 export async function setServiceUserActive(
   id: string,
   active: boolean,
+  actorUserId: string,
 ): Promise<ServiceUser | null> {
-  return updateServiceUser(id, { active });
+  return updateServiceUser(id, { active }, actorUserId);
 }

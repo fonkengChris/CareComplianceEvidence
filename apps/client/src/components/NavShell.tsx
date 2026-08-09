@@ -18,7 +18,10 @@ export default function NavShell() {
           {user?.role === 'MANAGER' && <Link to="/users">Users</Link>}
           {user?.role === 'MANAGER' && <Link to="/compliance-settings">Compliance</Link>}
           {(user?.role === 'MANAGER' || user?.role === 'AUDITOR') && (
-            <Link to="/reports">Reports</Link>
+            <>
+              <Link to="/reports">Reports</Link>
+              <Link to="/audit">Audit</Link>
+            </>
           )}
         </nav>
         <div className="flex items-center gap-3 text-sm">

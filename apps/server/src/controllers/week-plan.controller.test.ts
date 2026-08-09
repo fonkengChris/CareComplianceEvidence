@@ -169,9 +169,11 @@ describe('getById', () => {
 });
 
 describe('recordDayEntry', () => {
+  const entryId = '55555555-5555-4555-8555-555555555555';
   const recordReq = {
-    params: { id: plan.id, entryId: '55555555-5555-4555-8555-555555555555' },
+    params: { id: plan.id, entryId },
     body: { timeSpent: 45, outcome: 'COMPLETED', comment: 'All good' },
+    user: managerUser,
   };
 
   it('400s on an invalid body', async () => {
@@ -191,12 +193,17 @@ describe('recordDayEntry', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('200s with the refreshed plan', async () => {
+  it('200s with the refreshed plan and passes the actor to the service', async () => {
     serviceMock.recordDayEntry.mockResolvedValueOnce({ ok: true, value: planWithEntries });
     const res = mockRes();
     await controller.recordDayEntry(recordReq as unknown as Request, res);
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual(planWithEntries);
+    expect(serviceMock.recordDayEntry).toHaveBeenCalledWith(
+      entryId,
+      recordReq.body,
+      managerUser.sub,
+    );
   });
 });
 
@@ -210,24 +217,30 @@ describe('addDayEntry', () => {
       outcome: 'COMPLETED',
       comment: 'Unplanned walk',
     },
+    user: managerUser,
   };
 
   it('400s on an invalid body', async () => {
     const res = mockRes();
     await controller.addDayEntry(
-      { params: { id: plan.id }, body: { day: 'FUNDAY' } } as unknown as Request,
+      { params: { id: plan.id }, body: { day: 'FUNDAY' }, user: managerUser } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(400);
     expect(serviceMock.addStaffDayEntry).not.toHaveBeenCalled();
   });
 
-  it('201s with the refreshed plan', async () => {
+  it('201s with the refreshed plan and passes the actor to the service', async () => {
     serviceMock.addStaffDayEntry.mockResolvedValueOnce({ ok: true, value: planWithEntries });
     const res = mockRes();
     await controller.addDayEntry(addReq as unknown as Request, res);
     expect(res.statusCode).toBe(201);
     expect(res.body).toEqual(planWithEntries);
+    expect(serviceMock.addStaffDayEntry).toHaveBeenCalledWith(
+      plan.id,
+      addReq.body,
+      managerUser.sub,
+    );
   });
 });
 

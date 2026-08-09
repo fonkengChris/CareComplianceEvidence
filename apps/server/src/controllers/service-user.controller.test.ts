@@ -30,6 +30,13 @@ const sample: ServiceUser = {
   updatedAt: '2026-08-08T00:00:00.000Z',
 };
 
+// Writes carry the authenticated actor, threaded into the service for the audit trail.
+const managerUser = {
+  sub: '99999999-9999-4999-8999-999999999999',
+  role: 'MANAGER' as const,
+  email: 'manager@example.com',
+};
+
 function mockRes() {
   const res = {
     statusCode: 200,
@@ -123,21 +130,26 @@ describe('update', () => {
     serviceMock.updateServiceUser.mockResolvedValueOnce(null);
     const res = mockRes();
     await controller.update(
-      { params: { id: sample.id }, body: { name: 'New name' } } as unknown as Request,
+      { params: { id: sample.id }, body: { name: 'New name' }, user: managerUser } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(404);
   });
 
-  it('200s with the updated service user', async () => {
+  it('200s with the updated service user and passes the actor to the service', async () => {
     serviceMock.updateServiceUser.mockResolvedValueOnce(sample);
     const res = mockRes();
     await controller.update(
-      { params: { id: sample.id }, body: { name: 'Ada Lovelace' } } as unknown as Request,
+      { params: { id: sample.id }, body: { name: 'Ada Lovelace' }, user: managerUser } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual(sample);
+    expect(serviceMock.updateServiceUser).toHaveBeenCalledWith(
+      sample.id,
+      { name: 'Ada Lovelace' },
+      managerUser.sub,
+    );
   });
 });
 
@@ -153,7 +165,7 @@ describe('setActive', () => {
     serviceMock.setServiceUserActive.mockResolvedValueOnce(null);
     const res = mockRes();
     await controller.setActive(
-      { params: { id: sample.id }, body: { active: false } } as unknown as Request,
+      { params: { id: sample.id }, body: { active: false }, user: managerUser } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(404);
@@ -164,10 +176,10 @@ describe('setActive', () => {
     serviceMock.setServiceUserActive.mockResolvedValueOnce(deactivated);
     const res = mockRes();
     await controller.setActive(
-      { params: { id: sample.id }, body: { active: false } } as unknown as Request,
+      { params: { id: sample.id }, body: { active: false }, user: managerUser } as unknown as Request,
       res,
     );
-    expect(serviceMock.setServiceUserActive).toHaveBeenCalledWith(sample.id, false);
+    expect(serviceMock.setServiceUserActive).toHaveBeenCalledWith(sample.id, false, managerUser.sub);
     expect(res.body).toEqual(deactivated);
   });
 });
