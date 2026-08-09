@@ -1,80 +1,47 @@
 import type { ServiceUser, User } from '@care/shared';
-import { apiFetch } from './api';
+import { api } from './api';
 
 /**
- * Typed helpers over apiFetch for the supervision group (Phase 5). `fetchMyAssignments`
- * powers the staff dashboard (the caller's own service users); the manager helpers drive
- * the assignment section on the service-user detail page. Mirrors the other lib modules.
+ * Typed helpers over the shared axios instance for the supervision group (Phase 5).
+ * `fetchMyAssignments` powers the staff dashboard (the caller's own service users); the manager
+ * helpers drive the assignment section on the service-user detail page. Mirrors the other lib
+ * modules.
  */
-
-async function unwrap<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `Request failed (${res.status})`);
-  }
-  return res.json() as Promise<T>;
-}
 
 /** The service users the current staff member supervises. */
 export async function fetchMyAssignments(): Promise<ServiceUser[]> {
-  return unwrap<ServiceUser[]>(await apiFetch('/api/assignments/me'));
+  const { data } = await api.get<ServiceUser[]>('/api/assignments/me');
+  return data;
 }
 
 /** The staff members assigned to a service user (manager view). */
 export async function fetchStaffForServiceUser(serviceUserId: string): Promise<User[]> {
-  return unwrap<User[]>(
-    await apiFetch(`/api/assignments/service-user/${serviceUserId}`),
-  );
+  const { data } = await api.get<User[]>(`/api/assignments/service-user/${serviceUserId}`);
+  return data;
 }
 
 /** Assign a staff member to a service user. No body is returned (204). */
 export async function assignStaff(staffId: string, serviceUserId: string): Promise<void> {
-  const res = await apiFetch('/api/assignments', {
-    method: 'POST',
-    body: JSON.stringify({ staffId, serviceUserId }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `Request failed (${res.status})`);
-  }
+  await api.post('/api/assignments', { staffId, serviceUserId });
 }
 
 /** Remove a staff member from a service user's group. No body is returned (204). */
 export async function unassignStaff(staffId: string, serviceUserId: string): Promise<void> {
-  const res = await apiFetch(
-    `/api/assignments/service-user/${serviceUserId}/staff/${staffId}`,
-    { method: 'DELETE' },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `Request failed (${res.status})`);
-  }
+  await api.delete(`/api/assignments/service-user/${serviceUserId}/staff/${staffId}`);
 }
 
 /** The staff members assigned to a home (manager view). */
 export async function fetchStaffForHome(homeId: string): Promise<User[]> {
-  return unwrap<User[]>(await apiFetch(`/api/assignments/home/${homeId}`));
+  const { data } = await api.get<User[]>(`/api/assignments/home/${homeId}`);
+  return data;
 }
 
 /** Assign a staff member to a home. No body is returned (204). */
 export async function assignStaffToHome(staffId: string, homeId: string): Promise<void> {
-  const res = await apiFetch('/api/assignments/home', {
-    method: 'POST',
-    body: JSON.stringify({ staffId, homeId }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `Request failed (${res.status})`);
-  }
+  await api.post('/api/assignments/home', { staffId, homeId });
 }
 
 /** Remove a staff member from a home. No body is returned (204). */
 export async function unassignStaffFromHome(staffId: string, homeId: string): Promise<void> {
-  const res = await apiFetch(`/api/assignments/home/${homeId}/staff/${staffId}`, {
-    method: 'DELETE',
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `Request failed (${res.status})`);
-  }
+  await api.delete(`/api/assignments/home/${homeId}/staff/${staffId}`);
 }

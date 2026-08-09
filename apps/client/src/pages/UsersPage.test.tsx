@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { setAccessToken } from '../lib/api';
+import { mockApi } from '../lib/test-utils';
 import UsersPage from './UsersPage';
 
 /**
@@ -32,15 +33,15 @@ const rows = [
 ];
 
 function mockList() {
-  globalThis.fetch = mock(async (input: string | URL | Request) => {
-    if (String(input) === '/api/users') {
+  mockApi(async (url) => {
+    if (url === '/api/users') {
       return new Response(JSON.stringify(rows), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
     }
     return new Response(null, { status: 404 });
-  }) as unknown as typeof fetch;
+  });
 }
 
 function renderPage() {

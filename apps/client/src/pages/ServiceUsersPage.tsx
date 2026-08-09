@@ -100,11 +100,12 @@ export default function ServiceUsersPage() {
                   <TableHead>Address</TableHead>
                   <TableHead>Contracted hours</TableHead>
                   <TableHead>Status</TableHead>
+                  {isManager && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.map((su) => (
-                  <ServiceUserRow key={su.id} serviceUser={su} />
+                  <ServiceUserRow key={su.id} serviceUser={su} isManager={isManager} />
                 ))}
               </TableBody>
             </Table>
@@ -115,7 +116,13 @@ export default function ServiceUsersPage() {
   );
 }
 
-function ServiceUserRow({ serviceUser }: { serviceUser: ServiceUser }) {
+function ServiceUserRow({
+  serviceUser,
+  isManager,
+}: {
+  serviceUser: ServiceUser;
+  isManager: boolean;
+}) {
   return (
     <TableRow>
       <TableCell>
@@ -135,6 +142,16 @@ function ServiceUserRow({ serviceUser }: { serviceUser: ServiceUser }) {
           <Badge variant="secondary">Inactive</Badge>
         )}
       </TableCell>
+      {isManager && (
+        <TableCell className="text-right">
+          <Link
+            to={`/service-users/${serviceUser.id}/edit`}
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
+            Edit
+          </Link>
+        </TableCell>
+      )}
     </TableRow>
   );
 }

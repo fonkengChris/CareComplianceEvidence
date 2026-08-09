@@ -1,8 +1,9 @@
 import type { Role } from '@care/shared';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { setAccessToken } from '../lib/api';
+import { mockApi } from '../lib/test-utils';
 import { AuthProvider } from './AuthContext';
 import { ProtectedRoute } from './ProtectedRoute';
 
@@ -19,8 +20,8 @@ function makeUser(role: Role) {
 }
 
 function mockSession(role: Role | null) {
-  globalThis.fetch = mock(async (input: string | URL | Request) => {
-    if (String(input) === '/api/auth/refresh') {
+  mockApi(async (url) => {
+    if (url === '/api/auth/refresh') {
       return role
         ? new Response(JSON.stringify({ accessToken: 't', user: makeUser(role) }), {
             status: 200,
@@ -29,7 +30,7 @@ function mockSession(role: Role | null) {
         : new Response(null, { status: 401 });
     }
     return new Response(null, { status: 404 });
-  }) as unknown as typeof fetch;
+  });
 }
 
 function renderGuarded(guardRoles?: Role[]) {

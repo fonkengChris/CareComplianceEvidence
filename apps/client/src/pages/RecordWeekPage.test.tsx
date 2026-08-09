@@ -1,10 +1,11 @@
 import type { Role } from '@care/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '../auth/AuthContext';
 import { setAccessToken } from '../lib/api';
+import { mockApi as installApiMock } from '../lib/test-utils';
 import RecordWeekPage from './RecordWeekPage';
 
 /**
@@ -81,9 +82,8 @@ function mockApi(role: Role) {
   patchCount = 0;
   postCount = 0;
   lastPatchBody = null;
-  globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    const method = init?.method ?? 'GET';
+  installApiMock(async (url, init) => {
+    const method = init.method;
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -92,7 +92,7 @@ function mockApi(role: Role) {
     if (url === '/api/activity-types') return json(activityTypes);
     if (url === `/api/week-plans/${PLAN}/day-entries/${ENTRY}/record` && method === 'PATCH') {
       patchCount += 1;
-      lastPatchBody = init?.body ? JSON.parse(String(init.body)) : null;
+      lastPatchBody = init.body ? JSON.parse(String(init.body)) : null;
       return json(planWithEntries);
     }
     if (url === `/api/week-plans/${PLAN}/day-entries` && method === 'POST') {
@@ -100,7 +100,7 @@ function mockApi(role: Role) {
       return json(planWithEntries, 201);
     }
     return new Response(null, { status: 404 });
-  }) as unknown as typeof fetch;
+  });
 }
 
 function renderRecord() {

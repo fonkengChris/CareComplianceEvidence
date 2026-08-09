@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { setAccessToken } from '../lib/api';
+import { mockApi as installApiMock } from '../lib/test-utils';
 import ComplianceSettingsPage from './ComplianceSettingsPage';
 
 /**
@@ -26,19 +27,18 @@ let lastBody: Record<string, unknown> | null = null;
 function mockApi() {
   putCount = 0;
   lastBody = null;
-  globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    const method = init?.method ?? 'GET';
+  installApiMock(async (url, init) => {
+    const method = init.method;
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
     if (url === '/api/compliance-settings' && method === 'GET') return json(settings);
     if (url === '/api/compliance-settings' && method === 'PUT') {
       putCount += 1;
-      lastBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      lastBody = JSON.parse(String(init.body)) as Record<string, unknown>;
       return json({ ...settings, ...lastBody });
     }
     return new Response(null, { status: 404 });
-  }) as unknown as typeof fetch;
+  });
 }
 
 function renderPage() {

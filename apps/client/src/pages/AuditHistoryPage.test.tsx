@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { setAccessToken } from '../lib/api';
+import { mockApi as installApiMock } from '../lib/test-utils';
 import AuditHistoryPage from './AuditHistoryPage';
 
 /**
@@ -30,8 +31,7 @@ function makeLogs() {
 }
 
 function mockApi(body: unknown) {
-  globalThis.fetch = mock(async (input: string | URL | Request) => {
-    const url = String(input);
+  installApiMock(async (url) => {
     if (url.startsWith('/api/audit-logs')) {
       return new Response(JSON.stringify(body), {
         status: 200,
@@ -39,7 +39,7 @@ function mockApi(body: unknown) {
       });
     }
     return new Response(null, { status: 404 });
-  }) as unknown as typeof fetch;
+  });
 }
 
 function renderPage() {

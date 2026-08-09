@@ -1,5 +1,5 @@
 import type { ComplianceStatus, ReportData } from '@care/shared';
-import { apiFetch } from './api';
+import { api } from './api';
 
 /**
  * Typed helpers for the commissioner PDF report (Phase 8). `fetchWeekPlanReport` pulls the
@@ -9,16 +9,9 @@ import { apiFetch } from './api';
  * heavy `@react-pdf/renderer` — which the pages load lazily on demand.
  */
 
-async function unwrap<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `Request failed (${res.status})`);
-  }
-  return res.json() as Promise<T>;
-}
-
 export async function fetchWeekPlanReport(weekPlanId: string): Promise<ReportData> {
-  return unwrap<ReportData>(await apiFetch(`/api/week-plans/${weekPlanId}/report`));
+  const { data } = await api.get<ReportData>(`/api/week-plans/${weekPlanId}/report`);
+  return data;
 }
 
 /** Minutes → a compact hours string, matching the summary/planner views. */

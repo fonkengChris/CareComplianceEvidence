@@ -1,51 +1,40 @@
 import type { ServiceUser, ServiceUserCreate, ServiceUserUpdate } from '@care/shared';
-import { apiFetch } from './api';
+import { api } from './api';
 
 /**
- * Typed helpers over apiFetch for the service-user API. These are the functions the
- * TanStack Query hooks call; apiFetch attaches the bearer token and silently refreshes
- * on a 401. Errors surface as thrown Errors so React Query can move to its error state.
+ * Typed helpers over the shared axios instance for the service-user API. These are the
+ * functions the TanStack Query hooks call; the instance attaches the bearer token and
+ * silently refreshes on a 401. Non-2xx responses reject with the server's error message
+ * so React Query can move to its error state.
  */
 
 export type ActiveFilter = 'all' | 'active' | 'inactive';
 
-async function unwrap<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `Request failed (${res.status})`);
-  }
-  return res.json() as Promise<T>;
-}
-
 export async function fetchServiceUsers(filter: ActiveFilter = 'all'): Promise<ServiceUser[]> {
   const query = filter === 'all' ? '' : `?active=${filter === 'active'}`;
-  return unwrap<ServiceUser[]>(await apiFetch(`/api/service-users${query}`));
+  const { data } = await api.get<ServiceUser[]>(`/api/service-users${query}`);
+  return data;
 }
 
 export async function fetchServiceUser(id: string): Promise<ServiceUser> {
-  return unwrap<ServiceUser>(await apiFetch(`/api/service-users/${id}`));
+  const { data } = await api.get<ServiceUser>(`/api/service-users/${id}`);
+  return data;
 }
 
 export async function createServiceUser(input: ServiceUserCreate): Promise<ServiceUser> {
-  return unwrap<ServiceUser>(
-    await apiFetch('/api/service-users', { method: 'POST', body: JSON.stringify(input) }),
-  );
+  const { data } = await api.post<ServiceUser>('/api/service-users', input);
+  return data;
 }
 
 export async function updateServiceUser(
   id: string,
   input: ServiceUserUpdate,
 ): Promise<ServiceUser> {
-  return unwrap<ServiceUser>(
-    await apiFetch(`/api/service-users/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
-  );
+  const { data } = await api.put<ServiceUser>(`/api/service-users/${id}`, input);
+  return data;
 }
 
 export async function setServiceUserActive(id: string, active: boolean): Promise<ServiceUser> {
-  return unwrap<ServiceUser>(
-    await apiFetch(`/api/service-users/${id}/active`, {
-      method: 'PATCH',
-      body: JSON.stringify({ active }),
-    }),
-  );
+  const { data } = await api.patch<ServiceUser>(`/api/service-users/${id}/active`, { active });
+  return data;
 }

@@ -1,8 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '../auth/AuthContext';
 import { setAccessToken } from '../lib/api';
+import { mockApi } from '../lib/test-utils';
 import LoginPage from './LoginPage';
 
 const user = {
@@ -17,8 +18,7 @@ const user = {
 
 /** Mocks the mount-time refresh (always unauthenticated) and the login POST. */
 function mockAuth(loginOk: boolean) {
-  globalThis.fetch = mock(async (input: string | URL | Request) => {
-    const url = String(input);
+  mockApi(async (url) => {
     if (url === '/api/auth/refresh') return new Response(null, { status: 401 });
     if (url === '/api/auth/login') {
       return loginOk
@@ -29,7 +29,7 @@ function mockAuth(loginOk: boolean) {
         : new Response(null, { status: 401 });
     }
     return new Response(null, { status: 404 });
-  }) as unknown as typeof fetch;
+  });
 }
 
 function renderLogin() {

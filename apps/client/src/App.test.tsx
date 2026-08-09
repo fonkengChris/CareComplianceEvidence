@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
 import { setAccessToken } from './lib/api';
+import { mockApi } from './lib/test-utils';
 
 // A MANAGER: managers/auditors land on the weekly summary dashboard (Phase 7). (STAFF
 // instead get their recording dashboard, covered by StaffDashboardPage/RecordWeekPage tests.)
@@ -62,20 +63,17 @@ afterEach(() => {
 
 describe('App routing', () => {
   it('redirects to the login screen when unauthenticated', async () => {
-    globalThis.fetch = mock(
-      async () => new Response(null, { status: 401 }),
-    ) as unknown as typeof fetch;
+    mockApi(async () => new Response(null, { status: 401 }));
     renderApp();
     expect(await screen.findByLabelText('Email')).toBeDefined();
   });
 
   it('lands an authenticated manager on the weekly summary dashboard', async () => {
-    globalThis.fetch = mock(async (input: string | URL | Request) => {
-      const url = String(input);
+    mockApi(async (url) => {
       if (url === '/api/auth/refresh') return jsonResponse({ accessToken: 't', user });
       if (url.startsWith('/api/summary')) return jsonResponse(emptySummary);
       return new Response(null, { status: 404 });
-    }) as unknown as typeof fetch;
+    });
 
     renderApp();
     expect(await screen.findByRole('heading', { name: 'Weekly Summary' })).toBeDefined();

@@ -1,7 +1,8 @@
 import type { ReportData } from '@care/shared';
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { setAccessToken } from './api';
 import { fetchWeekPlanReport, reportFileName, reportHours, statusLabel } from './reports';
+import { mockApi } from './test-utils';
 
 /**
  * Covers the safe, DOM-free parts of the report feature: the fetch helper and the pure display
@@ -58,10 +59,10 @@ beforeEach(() => {
 describe('fetchWeekPlanReport', () => {
   it('requests the plan report endpoint and returns the data', async () => {
     let requested = '';
-    globalThis.fetch = mock(async (input: string | URL | Request) => {
-      requested = String(input);
+    mockApi(async (url) => {
+      requested = url;
       return jsonResponse(report);
-    }) as unknown as typeof fetch;
+    });
 
     const data = await fetchWeekPlanReport('plan-123');
     expect(requested).toBe('/api/week-plans/plan-123/report');
@@ -69,9 +70,7 @@ describe('fetchWeekPlanReport', () => {
   });
 
   it('throws the server error message on a non-OK response', async () => {
-    globalThis.fetch = mock(async () =>
-      jsonResponse({ error: 'Week plan not found' }, 404),
-    ) as unknown as typeof fetch;
+    mockApi(async () => jsonResponse({ error: 'Week plan not found' }, 404));
 
     await expect(fetchWeekPlanReport('missing')).rejects.toThrow('Week plan not found');
   });

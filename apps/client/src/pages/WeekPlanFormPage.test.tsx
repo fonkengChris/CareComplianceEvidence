@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { setAccessToken } from '../lib/api';
+import { mockApi as installApiMock } from '../lib/test-utils';
 import WeekPlanFormPage from './WeekPlanFormPage';
 
 /**
@@ -25,9 +26,8 @@ let postCount = 0;
 
 function mockApi() {
   postCount = 0;
-  globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    if (url === '/api/week-plans' && init?.method === 'POST') {
+  installApiMock(async (url, init) => {
+    if (url === '/api/week-plans' && init.method === 'POST') {
       postCount += 1;
       return new Response(JSON.stringify(created), {
         status: 201,
@@ -35,7 +35,7 @@ function mockApi() {
       });
     }
     return new Response(null, { status: 404 });
-  }) as unknown as typeof fetch;
+  });
 }
 
 function renderForm() {

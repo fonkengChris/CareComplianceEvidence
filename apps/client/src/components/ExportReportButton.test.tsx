@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { setAccessToken } from '../lib/api';
+import { mockApi } from '../lib/test-utils';
 import ExportReportButton from './ExportReportButton';
 
 /**
@@ -20,13 +21,13 @@ describe('ExportReportButton', () => {
   });
 
   it('shows the server error when the report fetch fails', async () => {
-    globalThis.fetch = mock(
+    mockApi(
       async () =>
         new Response(JSON.stringify({ error: 'Week plan not found' }), {
           status: 404,
           headers: { 'content-type': 'application/json' },
         }),
-    ) as unknown as typeof fetch;
+    );
 
     render(<ExportReportButton weekPlanId="missing" />);
     fireEvent.click(screen.getByRole('button', { name: 'Export PDF' }));

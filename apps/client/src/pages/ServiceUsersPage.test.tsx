@@ -1,10 +1,11 @@
 import type { Role } from '@care/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '../auth/AuthContext';
 import { setAccessToken } from '../lib/api';
+import { mockApi } from '../lib/test-utils';
 import ServiceUsersPage from './ServiceUsersPage';
 
 /**
@@ -30,8 +31,7 @@ let requestedUrls: string[] = [];
 
 function mockList(role: Role = 'MANAGER') {
   requestedUrls = [];
-  globalThis.fetch = mock(async (input: string | URL | Request) => {
-    const url = String(input);
+  mockApi(async (url) => {
     requestedUrls.push(url);
     if (url === '/api/auth/refresh') {
       return new Response(
@@ -57,7 +57,7 @@ function mockList(role: Role = 'MANAGER') {
       });
     }
     return new Response(null, { status: 404 });
-  }) as unknown as typeof fetch;
+  });
 }
 
 function renderPage() {

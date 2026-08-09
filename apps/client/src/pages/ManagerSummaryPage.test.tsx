@@ -1,10 +1,11 @@
 import type { Role } from '@care/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '../auth/AuthContext';
 import { setAccessToken } from '../lib/api';
+import { mockApi as installApiMock } from '../lib/test-utils';
 import ManagerSummaryPage from './ManagerSummaryPage';
 
 /**
@@ -75,8 +76,7 @@ function makeSummary() {
 }
 
 function mockApi(role: Role = 'MANAGER') {
-  globalThis.fetch = mock(async (input: string | URL | Request) => {
-    const url = String(input);
+  installApiMock(async (url) => {
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), {
         status,
@@ -98,7 +98,7 @@ function mockApi(role: Role = 'MANAGER') {
     }
     if (url.startsWith('/api/summary')) return json(makeSummary());
     return new Response(null, { status: 404 });
-  }) as unknown as typeof fetch;
+  });
 }
 
 function renderPage() {
