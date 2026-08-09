@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth.routes';
 import { complianceRouter } from './routes/compliance.routes';
 import { serviceUserRouter } from './routes/service-user.routes';
 import { staffAssignmentRouter } from './routes/staff-assignment.routes';
+import { summaryRouter } from './routes/summary.routes';
 import { userRouter } from './routes/user.routes';
 import { weekPlanRouter } from './routes/week-plan.routes';
 
@@ -31,3 +32,4 @@ app.use('/week-plans', weekPlanRouter);
 app.use('/activity-types', activityTypeRouter);
 app.use('/assignments', staffAssignmentRouter);
 app.use('/compliance-settings', complianceRouter);
+app.use('/summary', summaryRouter);

@@ -82,7 +82,7 @@ See `implementation-plan.md` for the full 11-phase breakdown and milestones. Upd
 - [x] Phase 4 — Weekly planning
 - [x] Phase 5 — Staff recording interface
 - [x] Phase 6 — Calculations & compliance indicators
-- [ ] Phase 7 — Manager summary
+- [x] Phase 7 — Manager summary
 - [ ] Phase 8 — Commissioner PDF report
 - [ ] Phase 9 — Audit trail
 - [ ] Phase 10 — Auditor access & QA

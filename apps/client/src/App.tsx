@@ -4,6 +4,7 @@ import NavShell from './components/NavShell';
 import ComplianceSettingsPage from './pages/ComplianceSettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
+import ManagerSummaryPage from './pages/ManagerSummaryPage';
 import RecordWeekPage from './pages/RecordWeekPage';
 import ServiceUserDetailPage from './pages/ServiceUserDetailPage';
 import ServiceUserFormPage from './pages/ServiceUserFormPage';
@@ -24,6 +25,10 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<NavShell />}>
           <Route path="/" element={<DashboardPage />} />
+          {/* Manager summary (Phase 7): cross-service-user weekly view, read-only for auditors. */}
+          <Route element={<ProtectedRoute roles={['MANAGER', 'AUDITOR']} />}>
+            <Route path="/reports" element={<ManagerSummaryPage />} />
+          </Route>
           {/* Staff recording (Phase 5): STAFF (scoped to their group) and managers. */}
           <Route element={<ProtectedRoute roles={['STAFF', 'MANAGER']} />}>
             <Route path="/week-plans/:id/record" element={<RecordWeekPage />} />

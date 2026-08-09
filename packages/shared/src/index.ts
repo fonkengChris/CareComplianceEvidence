@@ -15,3 +15,4 @@ export * from './compliance';
 export * from './audit';
 export * from './review-hint';
 export * from './staff-assignment';
+export * from './summary';
