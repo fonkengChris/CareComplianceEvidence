@@ -1,4 +1,4 @@
-import type { Session } from '../services/auth.service';
+import type { CreateUserResult, Session } from '../services/auth.service';
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import type { Request, Response } from 'express';
 
@@ -9,6 +9,7 @@ import type { Request, Response } from 'express';
 
 const serviceMock = {
   login: mock((): Promise<Session | null> => Promise.resolve(null)),
+  createUser: mock((): Promise<CreateUserResult> => Promise.resolve({ ok: true, value: sampleUser })),
   refresh: mock((): Promise<Session | null> => Promise.resolve(null)),
   logout: mock((): Promise<void> => Promise.resolve()),
   getUserById: mock((): Promise<unknown> => Promise.resolve(null)),
@@ -74,6 +75,7 @@ function mockRes() {
 
 afterEach(() => {
   serviceMock.login.mockReset();
+  serviceMock.createUser.mockReset();
   serviceMock.refresh.mockReset();
   serviceMock.logout.mockReset();
   serviceMock.getUserById.mockReset();
@@ -108,6 +110,41 @@ describe('login', () => {
     expect(res.statusCode).toBe(200);
     expect(res.cookies).toEqual([{ name: 'refresh_token', value: 'raw-refresh-token' }]);
     expect(res.body).toEqual({ accessToken: 'access.jwt.token', user: sampleUser });
+  });
+});
+
+describe('register', () => {
+  const validBody = {
+    name: 'New User',
+    email: 'new@example.com',
+    role: 'STAFF' as const,
+    password: 'Password123!',
+  };
+
+  it('400s on an invalid body (weak/short password)', async () => {
+    const res = mockRes();
+    await controller.register(
+      { body: { ...validBody, password: 'short' } } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(serviceMock.createUser).not.toHaveBeenCalled();
+  });
+
+  it('409s when the email is already taken', async () => {
+    serviceMock.createUser.mockResolvedValueOnce({ ok: false, reason: 'conflict' });
+    const res = mockRes();
+    await controller.register({ body: validBody } as unknown as Request, res);
+    expect(res.statusCode).toBe(409);
+  });
+
+  it('201s with the created user and never auto-logs-in (no cookie)', async () => {
+    serviceMock.createUser.mockResolvedValueOnce({ ok: true, value: sampleUser });
+    const res = mockRes();
+    await controller.register({ body: validBody } as unknown as Request, res);
+    expect(res.statusCode).toBe(201);
+    expect(res.body).toEqual(sampleUser);
+    expect(res.cookies).toHaveLength(0);
   });
 });
 

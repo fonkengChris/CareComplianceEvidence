@@ -1,5 +1,5 @@
 import { WEEKDAYS } from '@care/shared';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { hashPassword } from '../auth/password';
 import { client, db } from './index';
 import {
@@ -7,6 +7,7 @@ import {
   complianceSettings,
   dayEntries,
   serviceUsers,
+  staffAssignments,
   users,
   weekPlans,
 } from './schema';
@@ -26,6 +27,17 @@ const DEV_USERS = [
   { name: 'Sam Staff', email: 'staff@example.com', role: 'STAFF' as const },
   { name: 'Avery Auditor', email: 'auditor@example.com', role: 'AUDITOR' as const },
 ];
+
+// Named admin account. There is no separate ADMIN role — MANAGER is the app's
+// highest-privilege role (full CRUD on service users, plans, activities), so admin
+// maps to MANAGER. It has its own password, hashed and inserted separately from the
+// shared-password DEV_USERS above. Idempotent via onConflictDoNothing on the email.
+const ADMIN_USER = {
+  name: 'Chris Admin',
+  email: 'chris_admin@carecompliance.com',
+  role: 'MANAGER' as const,
+  password: 'Password123#',
+};
 
 // The standardised, admin-maintained activity list (CLAUDE.md / implementation plan).
 const ACTIVITY_NAMES = [
@@ -56,11 +68,21 @@ const SAMPLE_DAY_LINES = [
 ];
 
 await db.transaction(async (tx) => {
-  // 0. Login users — one per role. Hash up front, then insert idempotently.
+  // 0. Login users — one per role plus the named admin. Hash up front (admin has its
+  //    own password), then insert idempotently on the unique email.
   const passwordHash = await hashPassword(DEV_PASSWORD);
+  const adminPasswordHash = await hashPassword(ADMIN_USER.password);
   await tx
     .insert(users)
-    .values(DEV_USERS.map((u) => ({ ...u, passwordHash })))
+    .values([
+      ...DEV_USERS.map((u) => ({ ...u, passwordHash })),
+      {
+        name: ADMIN_USER.name,
+        email: ADMIN_USER.email,
+        role: ADMIN_USER.role,
+        passwordHash: adminPasswordHash,
+      },
+    ])
     .onConflictDoNothing({ target: users.email });
 
   // 1. Activity types — idempotent on the unique name.
@@ -79,42 +101,61 @@ await db.transaction(async (tx) => {
     .from(serviceUsers);
   if (count > 0) {
     console.log('Sample service users already present — skipping sample data.');
-    return;
+  } else {
+    const insertedUsers = await tx
+      .insert(serviceUsers)
+      .values([
+        { name: 'Alice Morgan', address: '12 Elm Street, Riverside', contractedHours: '20.00' },
+        { name: 'Brian Okafor', address: '4 Oak Court, Hillview', contractedHours: '15.50' },
+      ])
+      .returning({ id: serviceUsers.id });
+
+    const activities = await tx
+      .select({ id: activityTypes.id, name: activityTypes.name })
+      .from(activityTypes);
+    const activityIdByName = new Map(activities.map((a) => [a.name, a.id]));
+
+    const [plan] = await tx
+      .insert(weekPlans)
+      .values({
+        serviceUserId: insertedUsers[0].id,
+        weekCommencing: SAMPLE_WEEK_COMMENCING,
+        notes: 'Sample week for demonstration.',
+      })
+      .returning({ id: weekPlans.id });
+
+    // ~4 lines/day, Mon–Sun. timeSpent/outcome left null: this is a plan, not yet recorded.
+    const entries = WEEKDAYS.flatMap((day) =>
+      SAMPLE_DAY_LINES.map((line, i) => ({
+        weekPlanId: plan.id,
+        day,
+        lineNumber: i + 1,
+        activityTypeId: activityIdByName.get(line.activity) ?? null,
+        timeAllocated: line.minutes,
+      })),
+    );
+    await tx.insert(dayEntries).values(entries);
   }
 
-  const insertedUsers = await tx
-    .insert(serviceUsers)
-    .values([
-      { name: 'Alice Morgan', address: '12 Elm Street, Riverside', contractedHours: '20.00' },
-      { name: 'Brian Okafor', address: '4 Oak Court, Hillview', contractedHours: '15.50' },
-    ])
-    .returning({ id: serviceUsers.id });
-
-  const activities = await tx
-    .select({ id: activityTypes.id, name: activityTypes.name })
-    .from(activityTypes);
-  const activityIdByName = new Map(activities.map((a) => [a.name, a.id]));
-
-  const [plan] = await tx
-    .insert(weekPlans)
-    .values({
-      serviceUserId: insertedUsers[0].id,
-      weekCommencing: SAMPLE_WEEK_COMMENCING,
-      notes: 'Sample week for demonstration.',
-    })
-    .returning({ id: weekPlans.id });
-
-  // ~4 lines/day, Mon–Sun. timeSpent/outcome left null: this is a plan, not yet recorded.
-  const entries = WEEKDAYS.flatMap((day) =>
-    SAMPLE_DAY_LINES.map((line, i) => ({
-      weekPlanId: plan.id,
-      day,
-      lineNumber: i + 1,
-      activityTypeId: activityIdByName.get(line.activity) ?? null,
-      timeAllocated: line.minutes,
-    })),
-  );
-  await tx.insert(dayEntries).values(entries);
+  // 4. Supervision group — assign Sam Staff to Alice Morgan so the demo staff login
+  //    has a plan to record against (Phase 5). Idempotent on the unique pair; looked
+  //    up by email/name so it works whether or not sample data was just created.
+  const [staff] = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, 'staff@example.com'))
+    .limit(1);
+  const [alice] = await tx
+    .select({ id: serviceUsers.id })
+    .from(serviceUsers)
+    .where(eq(serviceUsers.name, 'Alice Morgan'))
+    .limit(1);
+  if (staff && alice) {
+    await tx
+      .insert(staffAssignments)
+      .values({ staffId: staff.id, serviceUserId: alice.id })
+      .onConflictDoNothing();
+  }
 });
 
 await client.end();

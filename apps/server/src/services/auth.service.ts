@@ -1,8 +1,9 @@
-import { type User, userSchema } from '@care/shared';
+import { type User, type UserCreate, userSchema } from '@care/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../db';
+import { isUniqueViolation } from '../db/errors';
 import { refreshTokens, users } from '../db/schema';
-import { verifyPassword } from '../auth/password';
+import { hashPassword, verifyPassword } from '../auth/password';
 import {
   generateRefreshToken,
   hashToken,
@@ -24,6 +25,29 @@ export interface Session {
   user: User;
   accessToken: string;
   refreshToken: string;
+}
+
+/** Result of a create that can collide with the unique-email constraint. */
+export type CreateUserResult = { ok: true; value: User } | { ok: false; reason: 'conflict' };
+
+/**
+ * Create a user (admin/manager onboarding). The plaintext password is hashed here;
+ * `passwordHash` never leaves this layer. A duplicate email (unique constraint)
+ * returns a typed `conflict` for the controller to map to 409 — without leaking
+ * whether the address was already taken beyond that status.
+ */
+export async function createUser(input: UserCreate): Promise<CreateUserResult> {
+  const passwordHash = await hashPassword(input.password);
+  try {
+    const [row] = await db
+      .insert(users)
+      .values({ name: input.name, email: input.email, role: input.role, passwordHash })
+      .returning();
+    return { ok: true, value: toPublicUser(row) };
+  } catch (err) {
+    if (isUniqueViolation(err)) return { ok: false, reason: 'conflict' };
+    throw err;
+  }
 }
 
 /** Map a DB user row to the public shared shape — drops passwordHash, ISO-dates. */

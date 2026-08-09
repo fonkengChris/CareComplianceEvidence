@@ -97,8 +97,11 @@ export const dayEntries = pgTable(
     activityTypeId: uuid('activity_type_id').references(() => activityTypes.id, {
       onDelete: 'restrict',
     }),
+    // Manager's planned text. Staff's "what happened" note lives in `comment`
+    // (kept separate so neither overwrites the other).
     description: text('description'),
-    // Minutes. timeSpent + outcome are recorded later by staff (Phase 5).
+    comment: text('comment'),
+    // Minutes. timeSpent + outcome (+ comment) are recorded later by staff (Phase 5).
     timeAllocated: integer('time_allocated'),
     timeSpent: integer('time_spent'),
     outcome: outcomeEnum('outcome'),
@@ -108,6 +111,29 @@ export const dayEntries = pgTable(
   // Deterministic line slots; leads with weekPlanId so it also serves the
   // per-plan fetch used by the Phase 6 aggregation. Does not cap rows per day.
   (t) => [unique('day_entries_plan_day_line').on(t.weekPlanId, t.day, t.lineNumber)],
+);
+
+export const staffAssignments = pgTable(
+  'staff_assignments',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // The supervision group: which service users a staff member currently covers.
+    // A manager grows/shrinks the group by adding/removing rows (Phase 5). Staff
+    // may view and record against the week plans of their assigned service users.
+    staffId: uuid('staff_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    serviceUserId: uuid('service_user_id')
+      .notNull()
+      .references(() => serviceUsers.id, { onDelete: 'cascade' }),
+    createdAt,
+  },
+  (t) => [
+    // At most one row per (staff, service user) — makes assign idempotent.
+    unique('staff_assignments_staff_service_user').on(t.staffId, t.serviceUserId),
+    // "My assignments" read path (staff dashboard) and the assignment guard.
+    index('staff_assignments_staff_idx').on(t.staffId),
+  ],
 );
 
 export const refreshTokens = pgTable(
@@ -163,6 +189,7 @@ export const auditLogs = pgTable(
 
 export const serviceUsersRelations = relations(serviceUsers, ({ many }) => ({
   weekPlans: many(weekPlans),
+  staffAssignments: many(staffAssignments),
 }));
 
 export const weekPlansRelations = relations(weekPlans, ({ one, many }) => ({
@@ -186,6 +213,18 @@ export const dayEntriesRelations = relations(dayEntries, ({ one }) => ({
 
 export const usersRelations = relations(users, ({ many }) => ({
   refreshTokens: many(refreshTokens),
+  staffAssignments: many(staffAssignments),
+}));
+
+export const staffAssignmentsRelations = relations(staffAssignments, ({ one }) => ({
+  staff: one(users, {
+    fields: [staffAssignments.staffId],
+    references: [users.id],
+  }),
+  serviceUser: one(serviceUsers, {
+    fields: [staffAssignments.serviceUserId],
+    references: [serviceUsers.id],
+  }),
 }));
 
 export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({

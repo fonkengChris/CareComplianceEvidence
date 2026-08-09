@@ -3,9 +3,14 @@ import { ProtectedRoute } from './auth/ProtectedRoute';
 import NavShell from './components/NavShell';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
+import RecordWeekPage from './pages/RecordWeekPage';
 import ServiceUserDetailPage from './pages/ServiceUserDetailPage';
 import ServiceUserFormPage from './pages/ServiceUserFormPage';
 import ServiceUsersPage from './pages/ServiceUsersPage';
+import UserFormPage from './pages/UserFormPage';
+import UsersPage from './pages/UsersPage';
+import WeekPlanDetailPage from './pages/WeekPlanDetailPage';
+import WeekPlanFormPage from './pages/WeekPlanFormPage';
 
 /**
  * Route map. `/login` is public; everything else sits behind ProtectedRoute (auth)
@@ -18,12 +23,25 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<NavShell />}>
           <Route path="/" element={<DashboardPage />} />
+          {/* Staff recording (Phase 5): STAFF (scoped to their group) and managers. */}
+          <Route element={<ProtectedRoute roles={['STAFF', 'MANAGER']} />}>
+            <Route path="/week-plans/:id/record" element={<RecordWeekPage />} />
+          </Route>
           {/* Service user management is MANAGER-only (server-enforced too). */}
           <Route element={<ProtectedRoute roles={['MANAGER']} />}>
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/users/new" element={<UserFormPage />} />
             <Route path="/service-users" element={<ServiceUsersPage />} />
             <Route path="/service-users/new" element={<ServiceUserFormPage />} />
             <Route path="/service-users/:id" element={<ServiceUserDetailPage />} />
             <Route path="/service-users/:id/edit" element={<ServiceUserFormPage />} />
+            {/* Weekly planning is MANAGER-only (server-enforced too). */}
+            <Route
+              path="/service-users/:serviceUserId/week-plans/new"
+              element={<WeekPlanFormPage />}
+            />
+            <Route path="/week-plans/:id" element={<WeekPlanDetailPage />} />
+            <Route path="/week-plans/:id/edit" element={<WeekPlanFormPage />} />
           </Route>
         </Route>
       </Route>

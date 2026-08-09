@@ -13,3 +13,5 @@ export * from './user';
 export * from './auth';
 export * from './compliance';
 export * from './audit';
+export * from './review-hint';
+export * from './staff-assignment';

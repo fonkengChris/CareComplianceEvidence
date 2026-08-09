@@ -2,8 +2,12 @@ import { healthStatusSchema, type HealthStatus } from '@care/shared';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import { checkDb } from './db';
+import { activityTypeRouter } from './routes/activity-type.routes';
 import { authRouter } from './routes/auth.routes';
 import { serviceUserRouter } from './routes/service-user.routes';
+import { staffAssignmentRouter } from './routes/staff-assignment.routes';
+import { userRouter } from './routes/user.routes';
+import { weekPlanRouter } from './routes/week-plan.routes';
 
 /** Builds and validates the health response body from a DB-connectivity flag. */
 export function buildHealthBody(dbUp: boolean): HealthStatus {
@@ -20,4 +24,8 @@ app.get('/health', async (_req, res) => {
 });
 
 app.use('/auth', authRouter);
+app.use('/users', userRouter);
 app.use('/service-users', serviceUserRouter);
+app.use('/week-plans', weekPlanRouter);
+app.use('/activity-types', activityTypeRouter);
+app.use('/assignments', staffAssignmentRouter);

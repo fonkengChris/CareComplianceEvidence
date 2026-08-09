@@ -1,4 +1,4 @@
-import { type AuthResponse, loginRequestSchema } from '@care/shared';
+import { type AuthResponse, loginRequestSchema, userCreateSchema } from '@care/shared';
 import type { CookieOptions, Request, Response } from 'express';
 import { config } from '../config';
 import * as authService from '../services/auth.service';
@@ -40,6 +40,25 @@ export async function login(req: Request, res: Response): Promise<void> {
   }
   res.cookie(REFRESH_COOKIE, session.refreshToken, refreshCookieOptions());
   res.json(body(session));
+}
+
+/**
+ * POST /auth/register — create a user. MANAGER-only (route middleware); an admin
+ * assigns the role explicitly, so this does NOT auto-login the new user. Returns the
+ * created public user (never the password hash). A duplicate email is a 409.
+ */
+export async function register(req: Request, res: Response): Promise<void> {
+  const parsed = userCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid user' });
+    return;
+  }
+  const result = await authService.createUser(parsed.data);
+  if (!result.ok) {
+    res.status(409).json({ error: 'A user with this email already exists' });
+    return;
+  }
+  res.status(201).json(result.value);
 }
 
 export async function refresh(req: Request, res: Response): Promise<void> {

@@ -5,11 +5,13 @@ import App from './App';
 import { AuthProvider } from './auth/AuthContext';
 import { setAccessToken } from './lib/api';
 
+// A MANAGER: managers/auditors get the API-health dashboard. (STAFF instead get their
+// recording dashboard, covered by StaffDashboardPage/RecordWeekPage tests.)
 const user = {
   id: '11111111-1111-4111-8111-111111111111',
-  name: 'Sam Staff',
-  email: 'sam@example.com',
-  role: 'STAFF',
+  name: 'Morgan Manager',
+  email: 'morgan@example.com',
+  role: 'MANAGER',
   active: true,
   createdAt: '2026-08-08T00:00:00.000Z',
   updatedAt: '2026-08-08T00:00:00.000Z',
@@ -57,7 +59,7 @@ describe('App routing', () => {
     }) as unknown as typeof fetch;
 
     renderApp();
-    expect(await screen.findByText(/Welcome, Sam Staff/)).toBeDefined();
+    expect(await screen.findByText(/Welcome, Morgan Manager/)).toBeDefined();
     expect((await screen.findByRole('status')).textContent).toContain('DB: up');
   });
 });

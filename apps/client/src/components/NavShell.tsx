@@ -15,6 +15,7 @@ export default function NavShell() {
         <nav className="flex gap-4" aria-label="Main">
           <Link to="/">Dashboard</Link>
           {user?.role === 'MANAGER' && <Link to="/service-users">Service Users</Link>}
+          {user?.role === 'MANAGER' && <Link to="/users">Users</Link>}
           {(user?.role === 'MANAGER' || user?.role === 'AUDITOR') && (
             <Link to="/reports">Reports</Link>
           )}
