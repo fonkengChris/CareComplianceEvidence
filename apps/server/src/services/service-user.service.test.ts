@@ -15,6 +15,7 @@ const baseRow: ServiceUserRow = {
   name: 'Ada Lovelace',
   address: '1 Analytical Ave',
   contractedHours: '12.50',
+  homeId: null,
   active: true,
   createdAt: new Date('2026-08-08T00:00:00.000Z'),
   updatedAt: new Date('2026-08-08T00:00:00.000Z'),

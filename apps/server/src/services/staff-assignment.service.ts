@@ -1,28 +1,51 @@
 import type { ServiceUser, User } from '@care/shared';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, or } from 'drizzle-orm';
 import { db } from '../db';
-import { serviceUsers, staffAssignments, users } from '../db/schema';
+import { serviceUsers, staffAssignments, staffHomeAssignments, users } from '../db/schema';
 import { toPublicUser } from './auth.service';
 import { toPublicServiceUser } from './service-user.service';
 
 /**
  * Staff-assignment service — the only layer that touches the DB for the supervision
- * group (which service users a staff member covers). A manager grows/shrinks the group
- * by adding/removing `(staffId, serviceUserId)` rows; staff may view and record against
- * the week plans of their assigned service users, and only those (Phase 5, CLAUDE.md).
+ * group (which service users a staff member covers). A staff member's reach is the
+ * UNION of two paths: direct `(staffId, serviceUserId)` rows AND membership of any home
+ * the service user belongs to (`staff_home_assignments`). A manager grows/shrinks either.
+ * Staff may view and record against the week plans of the service users they reach, and
+ * only those (Phase 5, CLAUDE.md — enforced on the server, not just the UI).
  */
+
+/** The ids of homes a staff member is assigned to. */
+async function homeIdsForStaff(staffId: string): Promise<string[]> {
+  const rows = await db
+    .select({ homeId: staffHomeAssignments.homeId })
+    .from(staffHomeAssignments)
+    .where(eq(staffHomeAssignments.staffId, staffId));
+  return rows.map((r) => r.homeId);
+}
 
 /**
  * The active service users a staff member currently supervises, ordered by name — the
- * staff dashboard payload. Inactive service users are excluded: there is nothing to
- * record against once a service user is soft-deleted.
+ * staff dashboard payload. Includes both directly-assigned service users and every
+ * active service user in a home the staff member belongs to, de-duplicated. Inactive
+ * service users are excluded: there is nothing to record against once soft-deleted.
  */
 export async function listAssignmentsForStaff(staffId: string): Promise<ServiceUser[]> {
+  const homeIds = await homeIdsForStaff(staffId);
+  const reach = or(
+    eq(staffAssignments.staffId, staffId),
+    homeIds.length > 0 ? inArray(serviceUsers.homeId, homeIds) : undefined,
+  );
   const rows = await db
-    .select({ serviceUser: serviceUsers })
-    .from(staffAssignments)
-    .innerJoin(serviceUsers, eq(serviceUsers.id, staffAssignments.serviceUserId))
-    .where(and(eq(staffAssignments.staffId, staffId), eq(serviceUsers.active, true)))
+    .selectDistinct({ serviceUser: serviceUsers })
+    .from(serviceUsers)
+    .leftJoin(
+      staffAssignments,
+      and(
+        eq(staffAssignments.serviceUserId, serviceUsers.id),
+        eq(staffAssignments.staffId, staffId),
+      ),
+    )
+    .where(and(eq(serviceUsers.active, true), reach))
     .orderBy(asc(serviceUsers.name));
   return rows.map((r) => toPublicServiceUser(r.serviceUser));
 }
@@ -59,12 +82,12 @@ export async function unassign(staffId: string, serviceUserId: string): Promise<
 }
 
 /**
- * Whether a staff member currently supervises a service user — the reusable guard behind
- * scoped reads and the recording endpoints. A missing row means "not assigned" → the
- * caller returns 403.
+ * Whether a staff member currently reaches a service user — the reusable guard behind
+ * scoped reads and the recording endpoints. True if there is a direct assignment OR the
+ * service user belongs to a home the staff member is assigned to. No match → 403.
  */
 export async function isStaffAssigned(staffId: string, serviceUserId: string): Promise<boolean> {
-  const [row] = await db
+  const [direct] = await db
     .select({ id: staffAssignments.id })
     .from(staffAssignments)
     .where(
@@ -74,5 +97,19 @@ export async function isStaffAssigned(staffId: string, serviceUserId: string): P
       ),
     )
     .limit(1);
-  return row !== undefined;
+  if (direct !== undefined) return true;
+
+  // Home path: does this service user's home appear among the staff member's homes?
+  const [viaHome] = await db
+    .select({ id: staffHomeAssignments.id })
+    .from(staffHomeAssignments)
+    .innerJoin(serviceUsers, eq(serviceUsers.homeId, staffHomeAssignments.homeId))
+    .where(
+      and(
+        eq(staffHomeAssignments.staffId, staffId),
+        eq(serviceUsers.id, serviceUserId),
+      ),
+    )
+    .limit(1);
+  return viaHome !== undefined;
 }

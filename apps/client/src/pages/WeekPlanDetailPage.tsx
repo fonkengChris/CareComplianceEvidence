@@ -2,10 +2,18 @@ import { type Weekday, WEEKDAYS } from '@care/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Plus } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import ExportReportButton from '../components/ExportReportButton';
 import WeekComplianceSummary from '../components/WeekComplianceSummary';
+import { Button, buttonVariants } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Select } from '../components/ui/select';
+import { cn } from '@/lib/utils';
 import { fetchActivityTypes } from '../lib/activity-types';
+import { toErrorMessage } from '../lib/errors';
 import { duplicateWeekPlan, fetchWeekPlan, replaceDayEntries } from '../lib/week-plans';
 
 /**
@@ -107,36 +115,35 @@ export default function WeekPlanDetailPage() {
 
   if (plan.isLoading) {
     return (
-      <p role="status" className="text-gray-500">
+      <p role="status" className="text-muted-foreground">
         Loading…
       </p>
     );
   }
   if (plan.isError || !plan.data) {
     return (
-      <p role="alert" className="text-red-600">
+      <p role="alert" className="text-sm font-medium text-destructive">
         Could not load this week plan.
       </p>
     );
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">Week of {plan.data.weekCommencing}</h1>
-        <div className="flex gap-2">
+    <section className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Week of {plan.data.weekCommencing}
+        </h1>
+        <div className="flex flex-wrap gap-2">
           {canRecord && (
-            <Link
-              to={`/week-plans/${plan.data.id}/record`}
-              className="rounded bg-green-700 px-3 py-2 font-medium text-white"
-            >
+            <Link to={`/week-plans/${plan.data.id}/record`} className={buttonVariants()}>
               Record time
             </Link>
           )}
           {isManager && (
             <Link
               to={`/week-plans/${plan.data.id}/edit`}
-              className="rounded border border-gray-300 px-3 py-2"
+              className={buttonVariants({ variant: 'outline' })}
             >
               Edit details
             </Link>
@@ -144,7 +151,7 @@ export default function WeekPlanDetailPage() {
           {canExport && (
             <ExportReportButton
               weekPlanId={plan.data.id}
-              className="rounded border border-gray-300 px-3 py-2 disabled:opacity-50"
+              className={cn(buttonVariants({ variant: 'outline' }))}
             />
           )}
         </div>
@@ -152,122 +159,146 @@ export default function WeekPlanDetailPage() {
 
       <WeekComplianceSummary compliance={plan.data.compliance} />
 
-      {plan.data.notes && <p className="text-gray-700">{plan.data.notes}</p>}
-
-      {(save.isError || duplicate.isError) && (
-        <p role="alert" className="text-red-600">
-          {((save.error ?? duplicate.error) as Error).message}
+      {plan.data.notes && (
+        <p className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+          {plan.data.notes}
         </p>
       )}
 
-      <div className="flex flex-col gap-6">
+      {(save.isError || duplicate.isError) && (
+        <p role="alert" className="text-sm font-medium text-destructive">
+          {toErrorMessage(save.error ?? duplicate.error)}
+        </p>
+      )}
+
+      <div className="flex flex-col gap-4">
         {WEEKDAYS.map((day) => {
           const dayRows = rows.filter((r) => r.day === day);
           return (
-            <div key={day} className="flex flex-col gap-2">
-              <h2 className="text-lg font-medium">{DAY_LABELS[day]}</h2>
-              {dayRows.length === 0 && <p className="text-sm text-gray-500">No lines planned.</p>}
-              {dayRows.map((row) => (
-                <div key={row.key} className="flex flex-wrap items-end gap-2" aria-label={`${DAY_LABELS[day]} line`}>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">Activity</span>
-                    <select
-                      aria-label={`${DAY_LABELS[day]} activity`}
-                      value={row.activityTypeId}
-                      disabled={!isManager}
-                      onChange={(e) => updateRow(row.key, { activityTypeId: e.target.value })}
-                      className="rounded border border-gray-300 p-2"
-                    >
-                      <option value="">— Select —</option>
-                      {activities.data?.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-1 flex-col gap-1">
-                    <span className="text-xs text-gray-500">Description</span>
-                    <input
-                      type="text"
-                      value={row.description}
-                      disabled={!isManager}
-                      onChange={(e) => updateRow(row.key, { description: e.target.value })}
-                      className="rounded border border-gray-300 p-2"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">Allocated (min)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={row.timeAllocated}
-                      disabled={!isManager}
-                      onChange={(e) => updateRow(row.key, { timeAllocated: e.target.value })}
-                      className="w-28 rounded border border-gray-300 p-2"
-                    />
-                  </label>
-                  {isManager && (
-                    <button
-                      type="button"
-                      onClick={() => removeRow(row.key)}
-                      className="rounded border border-gray-300 px-3 py-2 text-red-700"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-              {isManager && (
-                <button
-                  type="button"
-                  onClick={() => addRow(day)}
-                  className="self-start rounded border border-gray-300 px-3 py-1 text-sm"
-                >
-                  + Add line
-                </button>
-              )}
-            </div>
+            <Card key={day}>
+              <CardHeader className="py-4">
+                <CardTitle className="text-base">{DAY_LABELS[day]}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {dayRows.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No lines planned.</p>
+                )}
+                {dayRows.map((row) => (
+                  <div
+                    key={row.key}
+                    className="flex flex-wrap items-end gap-2"
+                    aria-label={`${DAY_LABELS[day]} line`}
+                  >
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-muted-foreground">Activity</Label>
+                      <Select
+                        aria-label={`${DAY_LABELS[day]} activity`}
+                        value={row.activityTypeId}
+                        disabled={!isManager}
+                        onChange={(e) => updateRow(row.key, { activityTypeId: e.target.value })}
+                        className="min-w-44"
+                      >
+                        <option value="">— Select —</option>
+                        {activities.data?.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="flex flex-1 flex-col gap-1.5">
+                      <Label className="text-xs text-muted-foreground">Description</Label>
+                      <Input
+                        type="text"
+                        value={row.description}
+                        disabled={!isManager}
+                        onChange={(e) => updateRow(row.key, { description: e.target.value })}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-muted-foreground">Allocated (min)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={row.timeAllocated}
+                        disabled={!isManager}
+                        onChange={(e) => updateRow(row.key, { timeAllocated: e.target.value })}
+                        className="w-28"
+                      />
+                    </div>
+                    {isManager && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => removeRow(row.key)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {isManager && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addRow(day)}
+                    className="self-start"
+                  >
+                    <Plus className="size-4" />
+                    Add line
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           );
         })}
       </div>
 
       {isManager && (
-        <div className="flex flex-col gap-3 border-t border-gray-200 pt-4">
-          <button
-            type="button"
-            onClick={() => save.mutate()}
-            disabled={save.isPending}
-            className="self-start rounded bg-blue-600 px-4 py-2 font-medium text-white disabled:opacity-50"
-          >
-            {save.isPending ? 'Saving…' : 'Save plan'}
-          </button>
-
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium">Duplicate to week commencing</span>
-              <input
-                type="date"
-                aria-label="Duplicate to week commencing"
-                value={duplicateWeek}
-                onChange={(e) => setDuplicateWeek(e.target.value)}
-                className="rounded border border-gray-300 p-2"
-              />
-            </label>
-            <button
+        <Card>
+          <CardContent className="flex flex-col gap-4 py-6">
+            <Button
               type="button"
-              onClick={() => duplicate.mutate()}
-              disabled={!duplicateWeek || duplicate.isPending}
-              className="rounded border border-gray-300 px-3 py-2 disabled:opacity-50"
+              onClick={() => save.mutate()}
+              disabled={save.isPending}
+              className="self-start"
             >
-              {duplicate.isPending ? 'Duplicating…' : 'Duplicate Previous Week'}
-            </button>
-          </div>
-        </div>
+              {save.isPending ? 'Saving…' : 'Save plan'}
+            </Button>
+
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="duplicate-week">Duplicate to week commencing</Label>
+                <Input
+                  id="duplicate-week"
+                  type="date"
+                  aria-label="Duplicate to week commencing"
+                  value={duplicateWeek}
+                  onChange={(e) => setDuplicateWeek(e.target.value)}
+                  className="w-44"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => duplicate.mutate()}
+                disabled={!duplicateWeek || duplicate.isPending}
+              >
+                {duplicate.isPending ? 'Duplicating…' : 'Duplicate Previous Week'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      <Link to={`/service-users/${plan.data.serviceUserId}`} className="text-blue-700 underline">
-        ← Back to service user
+      <Link
+        to={`/service-users/${plan.data.serviceUserId}`}
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" />
+        Back to service user
       </Link>
     </section>
   );

@@ -22,6 +22,7 @@ const report: ReportData = {
     name: 'Jane Doe',
     address: '12 Elm St',
     contractedHours: 15,
+    homeId: null,
     active: true,
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-01T00:00:00.000Z',

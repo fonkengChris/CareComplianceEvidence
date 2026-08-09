@@ -13,29 +13,29 @@ function toHours(minutes: number): string {
   return `${(minutes / 60).toFixed(1)}h`;
 }
 
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="text-lg font-semibold tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
 export default function WeekComplianceSummary({ compliance }: { compliance: WeekCompliance }) {
   const { deliveredMinutes, contractedMinutes, remainingMinutes, deliveryPct, status } = compliance;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-        <div className="flex gap-1">
-          <dt className="text-gray-500">Delivered</dt>
-          <dd className="font-medium">{toHours(deliveredMinutes)}</dd>
-        </div>
-        <div className="flex gap-1">
-          <dt className="text-gray-500">Contracted</dt>
-          <dd className="font-medium">{toHours(contractedMinutes)}</dd>
-        </div>
-        <div className="flex gap-1">
-          {/* Signed remaining: negative means over the contracted total. */}
-          <dt className="text-gray-500">{remainingMinutes >= 0 ? 'Remaining' : 'Over by'}</dt>
-          <dd className="font-medium">{toHours(Math.abs(remainingMinutes))}</dd>
-        </div>
-        <div className="flex gap-1">
-          <dt className="text-gray-500">Delivery</dt>
-          <dd className="font-medium">{deliveryPct}%</dd>
-        </div>
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5 shadow-sm">
+      <dl className="flex flex-wrap gap-x-8 gap-y-3">
+        <Stat label="Delivered" value={toHours(deliveredMinutes)} />
+        <Stat label="Contracted" value={toHours(contractedMinutes)} />
+        {/* Signed remaining: negative means over the contracted total. */}
+        <Stat
+          label={remainingMinutes >= 0 ? 'Remaining' : 'Over by'}
+          value={toHours(Math.abs(remainingMinutes))}
+        />
+        <Stat label="Delivery" value={`${deliveryPct}%`} />
       </dl>
       <ComplianceBadge status={status} />
     </div>

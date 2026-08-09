@@ -1,6 +1,17 @@
+import { HeartPulse } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { Button } from '../components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 
 /** Email/password login. On success, routes to the dashboard; the guard handles roles. */
 export default function LoginPage() {
@@ -26,46 +37,55 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-6">
-      <form onSubmit={onSubmit} className="flex w-full max-w-sm flex-col gap-4" aria-label="Log in">
-        <h1 className="text-2xl font-semibold">Care 1-to-1 Hours Tracker</h1>
-        {error && (
-          <p role="alert" className="text-red-600">
-            {error}
-          </p>
-        )}
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Email</span>
-          <input
-            type="email"
-            name="email"
-            autoComplete="username"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="rounded border border-gray-300 p-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Password</span>
-          <input
-            type="password"
-            name="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="rounded border border-gray-300 p-2"
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-blue-600 p-2 font-medium text-white disabled:opacity-50"
-        >
-          {submitting ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-6">
+      <div className="mb-6 flex items-center gap-2 text-lg font-semibold tracking-tight">
+        <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <HeartPulse className="size-5" />
+        </span>
+        Care 1-to-1 Hours Tracker
+      </div>
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-xl">Sign in</CardTitle>
+          <CardDescription>Enter your credentials to access the tracker.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onSubmit} className="flex flex-col gap-4" aria-label="Log in">
+            {error && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                {error}
+              </p>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                name="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <Button type="submit" disabled={submitting} className="mt-1 w-full">
+              {submitting ? 'Signing in…' : 'Sign in'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }

@@ -50,3 +50,31 @@ export async function unassignStaff(staffId: string, serviceUserId: string): Pro
     throw new Error(body?.error ?? `Request failed (${res.status})`);
   }
 }
+
+/** The staff members assigned to a home (manager view). */
+export async function fetchStaffForHome(homeId: string): Promise<User[]> {
+  return unwrap<User[]>(await apiFetch(`/api/assignments/home/${homeId}`));
+}
+
+/** Assign a staff member to a home. No body is returned (204). */
+export async function assignStaffToHome(staffId: string, homeId: string): Promise<void> {
+  const res = await apiFetch('/api/assignments/home', {
+    method: 'POST',
+    body: JSON.stringify({ staffId, homeId }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `Request failed (${res.status})`);
+  }
+}
+
+/** Remove a staff member from a home. No body is returned (204). */
+export async function unassignStaffFromHome(staffId: string, homeId: string): Promise<void> {
+  const res = await apiFetch(`/api/assignments/home/${homeId}/staff/${staffId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `Request failed (${res.status})`);
+  }
+}

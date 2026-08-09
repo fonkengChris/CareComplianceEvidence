@@ -4,6 +4,12 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { z } from 'zod';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import { toErrorMessage } from '../lib/errors';
 import { createWeekPlan, fetchWeekPlan, updateWeekPlan } from '../lib/week-plans';
 
 /**
@@ -70,63 +76,60 @@ export default function WeekPlanFormPage() {
 
   if (isEdit && existing.isLoading) {
     return (
-      <p role="status" className="text-gray-500">
+      <p role="status" className="text-muted-foreground">
         Loading…
       </p>
     );
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">{isEdit ? 'Edit week plan' : 'New week plan'}</h1>
+    <section className="mx-auto flex w-full max-w-md flex-col gap-6">
+      <h1 className="text-2xl font-semibold tracking-tight">
+        {isEdit ? 'Edit week plan' : 'New week plan'}
+      </h1>
 
-      <form
-        onSubmit={handleSubmit((values) => mutation.mutate(values))}
-        className="flex w-full max-w-md flex-col gap-4"
-        aria-label={isEdit ? 'Edit week plan' : 'New week plan'}
-      >
-        {mutation.isError && (
-          <p role="alert" className="text-red-600">
-            {(mutation.error as Error).message}
-          </p>
-        )}
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Week commencing</span>
-          <input
-            type="date"
-            {...register('weekCommencing')}
-            className="rounded border border-gray-300 p-2"
-          />
-          {errors.weekCommencing && (
-            <span role="alert" className="text-sm text-red-600">
-              {errors.weekCommencing.message}
-            </span>
-          )}
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Notes</span>
-          <textarea {...register('notes')} className="rounded border border-gray-300 p-2" rows={3} />
-        </label>
-
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={isSubmitting || mutation.isPending}
-            className="rounded bg-blue-600 p-2 font-medium text-white disabled:opacity-50"
+      <Card>
+        <CardHeader>
+          <CardTitle>Week details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={handleSubmit((values) => mutation.mutate(values))}
+            className="flex flex-col gap-4"
+            aria-label={isEdit ? 'Edit week plan' : 'New week plan'}
           >
-            {mutation.isPending ? 'Saving…' : 'Save'}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="rounded border border-gray-300 px-3 py-2"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
+            {mutation.isError && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                {toErrorMessage(mutation.error)}
+              </p>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="weekCommencing">Week commencing</Label>
+              <Input id="weekCommencing" type="date" {...register('weekCommencing')} />
+              {errors.weekCommencing && (
+                <span role="alert" className="text-sm text-destructive">
+                  {errors.weekCommencing.message}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea id="notes" {...register('notes')} rows={3} />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" disabled={isSubmitting || mutation.isPending}>
+                {mutation.isPending ? 'Saving…' : 'Save'}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </section>
   );
 }

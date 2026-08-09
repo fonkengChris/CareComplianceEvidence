@@ -28,8 +28,6 @@ import {
 // seed's Alice/Brian, so the (serviceUserId, weekCommencing) unique index is happy.
 const WEEKS = ['2026-07-13', '2026-07-20', '2026-07-27', '2026-08-03'] as const;
 
-type Band = 'green' | 'amber' | 'red' | 'over';
-
 // One mock service user per row. `deliveryByWeek` is the fraction of contracted hours
 // actually delivered that week — this is what drives the compliance colour so the
 // manager summary shows a spread of statuses and a per-user trend across weeks.

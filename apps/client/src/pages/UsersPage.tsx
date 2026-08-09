@@ -1,6 +1,18 @@
 import type { User } from '@care/shared';
 import { useQuery } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Badge } from '../components/ui/badge';
+import { buttonVariants } from '../components/ui/button';
+import { Card, CardContent } from '../components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../components/ui/table';
 import { fetchUsers } from '../lib/users';
 
 /**
@@ -12,43 +24,60 @@ export default function UsersPage() {
   const { data, isLoading, isError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">Users</h1>
-        <Link to="/users/new" className="rounded bg-blue-600 px-3 py-2 font-medium text-white">
+    <section className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
+          <p className="text-sm text-muted-foreground">
+            Staff, manager and auditor accounts with access to the tracker.
+          </p>
+        </div>
+        <Link to="/users/new" className={buttonVariants()}>
+          <Plus className="size-4" />
           Add new user
         </Link>
       </div>
 
       {isLoading && (
-        <p role="status" className="text-gray-500">
+        <p role="status" className="text-muted-foreground">
           Loading…
         </p>
       )}
       {isError && (
-        <p role="alert" className="text-red-600">
+        <p role="alert" className="text-sm font-medium text-destructive">
           Could not load users.
         </p>
       )}
 
-      {data && data.length === 0 && <p className="text-gray-500">No users found.</p>}
+      {data && data.length === 0 && (
+        <Card>
+          <CardContent className="p-10 text-center text-muted-foreground">
+            No users found.
+          </CardContent>
+        </Card>
+      )}
 
       {data && data.length > 0 && (
-        <table className="w-full border-collapse text-left">
-          <thead>
-            <tr className="border-b border-gray-200 text-sm text-gray-600">
-              <th className="py-2 pr-4">Name</th>
-              <th className="py-2 pr-4">Email</th>
-              <th className="py-2 pr-4">Role</th>
-              <th className="py-2 pr-4">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((u) => (
-              <UserRow key={u.id} user={u} />
-            ))}
-          </tbody>
-        </table>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((u) => (
+                  <UserRow key={u.id} user={u} />
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
     </section>
   );
@@ -56,17 +85,27 @@ export default function UsersPage() {
 
 function UserRow({ user }: { user: User }) {
   return (
-    <tr className="border-b border-gray-100">
-      <td className="py-2 pr-4">{user.name}</td>
-      <td className="py-2 pr-4 text-gray-700">{user.email}</td>
-      <td className="py-2 pr-4 text-gray-700">{user.role}</td>
-      <td className="py-2 pr-4">
+    <TableRow>
+      <TableCell className="font-medium">{user.name}</TableCell>
+      <TableCell className="text-muted-foreground">{user.email}</TableCell>
+      <TableCell>
+        <Badge variant="outline">{user.role}</Badge>
+      </TableCell>
+      <TableCell>
         {user.active ? (
-          <span className="text-green-700">Active</span>
+          <Badge variant="success">Active</Badge>
         ) : (
-          <span className="text-gray-500">Inactive</span>
+          <Badge variant="secondary">Inactive</Badge>
         )}
-      </td>
-    </tr>
+      </TableCell>
+      <TableCell className="text-right">
+        <Link
+          to={`/users/${user.id}/edit`}
+          className={buttonVariants({ variant: 'outline', size: 'sm' })}
+        >
+          Edit
+        </Link>
+      </TableCell>
+    </TableRow>
   );
 }

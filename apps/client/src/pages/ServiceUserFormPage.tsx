@@ -4,6 +4,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Select } from '../components/ui/select';
+import { toErrorMessage } from '../lib/errors';
+import { fetchHomes } from '../lib/homes';
 import { createServiceUser, fetchServiceUser, updateServiceUser } from '../lib/service-users';
 
 /**
@@ -24,8 +31,11 @@ export default function ServiceUserFormPage() {
     formState: { errors, isSubmitting },
   } = useForm<ServiceUserCreate>({
     resolver: zodResolver(serviceUserCreateSchema),
-    defaultValues: { name: '', address: '', contractedHours: 0 },
+    defaultValues: { name: '', address: '', contractedHours: 0, homeId: null },
   });
+
+  // Active homes to choose from (the "belongs to" picker).
+  const homes = useQuery({ queryKey: ['homes', 'active'], queryFn: () => fetchHomes('active') });
 
   // In edit mode, load the record and seed the form once it arrives.
   const existing = useQuery({
@@ -40,6 +50,7 @@ export default function ServiceUserFormPage() {
         name: existing.data.name,
         address: existing.data.address ?? '',
         contractedHours: existing.data.contractedHours,
+        homeId: existing.data.homeId,
       });
     }
   }, [existing.data, reset]);
@@ -58,86 +69,96 @@ export default function ServiceUserFormPage() {
 
   if (isEdit && existing.isLoading) {
     return (
-      <p role="status" className="text-gray-500">
+      <p role="status" className="text-muted-foreground">
         Loading…
       </p>
     );
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">
+    <section className="mx-auto flex w-full max-w-md flex-col gap-6">
+      <h1 className="text-2xl font-semibold tracking-tight">
         {isEdit ? 'Edit service user' : 'New service user'}
       </h1>
 
-      <form
-        onSubmit={handleSubmit((values) => mutation.mutate(values))}
-        className="flex w-full max-w-md flex-col gap-4"
-        aria-label={isEdit ? 'Edit service user' : 'New service user'}
-      >
-        {mutation.isError && (
-          <p role="alert" className="text-red-600">
-            {(mutation.error as Error).message}
-          </p>
-        )}
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Name</span>
-          <input type="text" {...register('name')} className="rounded border border-gray-300 p-2" />
-          {errors.name && (
-            <span role="alert" className="text-sm text-red-600">
-              {errors.name.message}
-            </span>
-          )}
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Address</span>
-          <input
-            type="text"
-            {...register('address')}
-            className="rounded border border-gray-300 p-2"
-          />
-          {errors.address && (
-            <span role="alert" className="text-sm text-red-600">
-              {errors.address.message}
-            </span>
-          )}
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Contracted hours</span>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            {...register('contractedHours', { valueAsNumber: true })}
-            className="rounded border border-gray-300 p-2"
-          />
-          {errors.contractedHours && (
-            <span role="alert" className="text-sm text-red-600">
-              {errors.contractedHours.message}
-            </span>
-          )}
-        </label>
-
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={isSubmitting || mutation.isPending}
-            className="rounded bg-blue-600 p-2 font-medium text-white disabled:opacity-50"
+      <Card>
+        <CardHeader>
+          <CardTitle>Service user details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={handleSubmit((values) => mutation.mutate(values))}
+            className="flex flex-col gap-4"
+            aria-label={isEdit ? 'Edit service user' : 'New service user'}
           >
-            {mutation.isPending ? 'Saving…' : 'Save'}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="rounded border border-gray-300 px-3 py-2"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
+            {mutation.isError && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                {toErrorMessage(mutation.error)}
+              </p>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="name">Name</Label>
+              <Input id="name" type="text" {...register('name')} />
+              {errors.name && (
+                <span role="alert" className="text-sm text-destructive">
+                  {errors.name.message}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="address">Address</Label>
+              <Input id="address" type="text" {...register('address')} />
+              {errors.address && (
+                <span role="alert" className="text-sm text-destructive">
+                  {errors.address.message}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="contractedHours">Contracted hours</Label>
+              <Input
+                id="contractedHours"
+                type="number"
+                step="0.01"
+                min="0"
+                {...register('contractedHours', { valueAsNumber: true })}
+              />
+              {errors.contractedHours && (
+                <span role="alert" className="text-sm text-destructive">
+                  {errors.contractedHours.message}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="homeId">Home</Label>
+              <Select
+                id="homeId"
+                {...register('homeId', { setValueAs: (v) => (v ? v : null) })}
+              >
+                <option value="">— None —</option>
+                {homes.data?.map((home) => (
+                  <option key={home.id} value={home.id}>
+                    {home.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" disabled={isSubmitting || mutation.isPending}>
+                {mutation.isPending ? 'Saving…' : 'Save'}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </section>
   );
 }

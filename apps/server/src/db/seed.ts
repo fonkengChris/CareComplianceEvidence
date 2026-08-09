@@ -6,8 +6,10 @@ import {
   activityTypes,
   complianceSettings,
   dayEntries,
+  homes,
   serviceUsers,
   staffAssignments,
+  staffHomeAssignments,
   users,
   weekPlans,
 } from './schema';
@@ -94,7 +96,22 @@ await db.transaction(async (tx) => {
   // 2. Compliance settings singleton — idempotent on the unique `singleton` flag.
   await tx.insert(complianceSettings).values(DEFAULT_COMPLIANCE).onConflictDoNothing();
 
-  // 3. Sample service users + week plan — only when no service users exist yet, so
+  // 3. Sample home — idempotent on the (non-unique) name, so only insert if absent.
+  //    Service users below belong to it; a staff member assigned to the home reaches
+  //    every service user in it (group-based supervision).
+  const [existingHome] = await tx
+    .select({ id: homes.id })
+    .from(homes)
+    .where(eq(homes.name, 'Riverside House'))
+    .limit(1);
+  const [home] = existingHome
+    ? [existingHome]
+    : await tx
+        .insert(homes)
+        .values({ name: 'Riverside House', address: '1 Riverside Way, Riverside' })
+        .returning({ id: homes.id });
+
+  // 4. Sample service users + week plan — only when no service users exist yet, so
   //    the block as a whole stays idempotent (service_users has no natural key).
   const [{ count }] = await tx
     .select({ count: sql<number>`count(*)::int` })
@@ -105,8 +122,18 @@ await db.transaction(async (tx) => {
     const insertedUsers = await tx
       .insert(serviceUsers)
       .values([
-        { name: 'Alice Morgan', address: '12 Elm Street, Riverside', contractedHours: '20.00' },
-        { name: 'Brian Okafor', address: '4 Oak Court, Hillview', contractedHours: '15.50' },
+        {
+          name: 'Alice Morgan',
+          address: '12 Elm Street, Riverside',
+          contractedHours: '20.00',
+          homeId: home.id,
+        },
+        {
+          name: 'Brian Okafor',
+          address: '4 Oak Court, Hillview',
+          contractedHours: '15.50',
+          homeId: home.id,
+        },
       ])
       .returning({ id: serviceUsers.id });
 
@@ -137,7 +164,7 @@ await db.transaction(async (tx) => {
     await tx.insert(dayEntries).values(entries);
   }
 
-  // 4. Supervision group — assign Sam Staff to Alice Morgan so the demo staff login
+  // 5. Supervision group — assign Sam Staff to Alice Morgan so the demo staff login
   //    has a plan to record against (Phase 5). Idempotent on the unique pair; looked
   //    up by email/name so it works whether or not sample data was just created.
   const [staff] = await tx
@@ -154,6 +181,16 @@ await db.transaction(async (tx) => {
     await tx
       .insert(staffAssignments)
       .values({ staffId: staff.id, serviceUserId: alice.id })
+      .onConflictDoNothing();
+  }
+
+  // 6. Group-based supervision — also assign Sam Staff to Riverside House, so the demo
+  //    staff login reaches every service user in the home (Brian via the home, Alice
+  //    via both the home and the direct assignment above). Idempotent on the pair.
+  if (staff) {
+    await tx
+      .insert(staffHomeAssignments)
+      .values({ staffId: staff.id, homeId: home.id })
       .onConflictDoNothing();
   }
 });

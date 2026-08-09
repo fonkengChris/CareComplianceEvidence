@@ -80,6 +80,18 @@ describe('requireRole', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('lets an auditor into a MANAGER/AUDITOR read guard', () => {
+    const { res, next } = run('AUDITOR', ['MANAGER', 'AUDITOR']);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('403s an auditor on a manager-only write guard', () => {
+    const { res, next } = run('AUDITOR', ['MANAGER']);
+    expect(res.statusCode).toBe(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('401s when there is no authenticated user', () => {
     const { res, next } = run(undefined, ['MANAGER']);
     expect(res.statusCode).toBe(401);

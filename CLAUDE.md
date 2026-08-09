@@ -85,7 +85,7 @@ See `implementation-plan.md` for the full 11-phase breakdown and milestones. Upd
 - [x] Phase 7 — Manager summary
 - [x] Phase 8 — Commissioner PDF report
 - [x] Phase 9 — Audit trail
-- [ ] Phase 10 — Auditor access & QA
+- [x] Phase 10 — Auditor access & QA
 - [ ] Phase 11 — Deployment
 
 ---
@@ -103,7 +103,8 @@ In scope for v1: auth, service user CRUD, weekly plans, activity dropdown + time
 ```bash
 bun install          # install all workspace deps
 bun run dev           # run web + api concurrently
-bun test              # run all tests
+bun test              # run all unit/component tests (ignores e2e/*.e2e.ts)
+bun run test:e2e      # Playwright full-stack e2e — needs a real env + Postgres, not the sandbox
 bun run typecheck     # typecheck every workspace
 bun run db:generate   # generate a versioned SQL migration from schema.ts
 bun run db:migrate    # apply committed migrations (auditable; preferred over db:push)

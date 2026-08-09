@@ -1,7 +1,9 @@
+import type { Role } from '@care/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { AuthProvider } from '../auth/AuthContext';
 import { setAccessToken } from '../lib/api';
 import ManagerSummaryPage from './ManagerSummaryPage';
 
@@ -72,7 +74,7 @@ function makeSummary() {
   };
 }
 
-function mockApi() {
+function mockApi(role: Role = 'MANAGER') {
   globalThis.fetch = mock(async (input: string | URL | Request) => {
     const url = String(input);
     const json = (body: unknown, status = 200) =>
@@ -80,6 +82,20 @@ function mockApi() {
         status,
         headers: { 'content-type': 'application/json' },
       });
+    if (url === '/api/auth/refresh') {
+      return json({
+        accessToken: 't',
+        user: {
+          id: 'me',
+          name: 'Test User',
+          email: 'test@example.com',
+          role,
+          active: true,
+          createdAt: '2026-08-01T00:00:00.000Z',
+          updatedAt: '2026-08-01T00:00:00.000Z',
+        },
+      });
+    }
     if (url.startsWith('/api/summary')) return json(makeSummary());
     return new Response(null, { status: 404 });
   }) as unknown as typeof fetch;
@@ -90,7 +106,9 @@ function renderPage() {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <ManagerSummaryPage />
+        <AuthProvider>
+          <ManagerSummaryPage />
+        </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -126,6 +144,16 @@ describe('ManagerSummaryPage', () => {
     expect(await screen.findByText('Activity breakdown')).toBeDefined();
     expect(screen.getByText('Shopping')).toBeDefined();
     expect(screen.getByRole('link', { name: 'View plan' })).toBeDefined();
+  });
+
+  it('hides the "Create plan" link from an auditor but still lets them view plans', async () => {
+    mockApi('AUDITOR');
+    renderPage();
+    expect(await screen.findByText(/No plan/)).toBeDefined();
+    expect(screen.queryByRole('link', { name: 'Create plan' })).toBeNull();
+    // Read-only drill-in remains: expanding a planned row still offers "View plan".
+    fireEvent.click(await screen.findByRole('button', { name: /Ada Lovelace/ }));
+    expect(await screen.findByRole('link', { name: 'View plan' })).toBeDefined();
   });
 
   it('moves to another week with the picker', async () => {

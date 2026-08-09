@@ -1,13 +1,27 @@
 import type { ServiceUser } from '@care/shared';
 import { useQuery } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
+import { Badge } from '../components/ui/badge';
+import { Button, buttonVariants } from '../components/ui/button';
+import { Card, CardContent } from '../components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../components/ui/table';
 import { type ActiveFilter, fetchServiceUsers } from '../lib/service-users';
 
 /**
- * Manager list of service users: a table (manager pattern, not mobile cards) with an
- * active/inactive/all filter and a link to create. Rows link through to the detail
- * view. The filter is part of the query key so switching it refetches.
+ * Service user list: a table (manager pattern, not mobile cards) with an
+ * active/inactive/all filter. Rows link through to the detail view. Managers also get
+ * a link to create; auditors see the list read-only. The filter is part of the query
+ * key so switching it refetches.
  */
 
 const FILTERS: { value: ActiveFilter; label: string }[] = [
@@ -17,6 +31,8 @@ const FILTERS: { value: ActiveFilter; label: string }[] = [
 ];
 
 export default function ServiceUsersPage() {
+  const { user } = useAuth();
+  const isManager = user?.role === 'MANAGER';
   const [filter, setFilter] = useState<ActiveFilter>('active');
   const { data, isLoading, isError } = useQuery({
     queryKey: ['service-users', filter],
@@ -24,64 +40,76 @@ export default function ServiceUsersPage() {
   });
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">Service Users</h1>
-        <Link
-          to="/service-users/new"
-          className="rounded bg-blue-600 px-3 py-2 font-medium text-white"
-        >
-          New service user
-        </Link>
+    <section className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Service Users</h1>
+          <p className="text-sm text-muted-foreground">
+            People receiving 1-to-1 support and their contracted hours.
+          </p>
+        </div>
+        {isManager && (
+          <Link to="/service-users/new" className={buttonVariants()}>
+            <Plus className="size-4" />
+            New service user
+          </Link>
+        )}
       </div>
 
       <div className="flex gap-2" role="group" aria-label="Filter by status">
         {FILTERS.map((f) => (
-          <button
+          <Button
             key={f.value}
             type="button"
+            size="sm"
+            variant={filter === f.value ? 'default' : 'outline'}
             aria-pressed={filter === f.value}
             onClick={() => setFilter(f.value)}
-            className={`rounded border px-3 py-1 ${
-              filter === f.value
-                ? 'border-blue-600 bg-blue-50 text-blue-700'
-                : 'border-gray-300 text-gray-700'
-            }`}
           >
             {f.label}
-          </button>
+          </Button>
         ))}
       </div>
 
       {isLoading && (
-        <p role="status" className="text-gray-500">
+        <p role="status" className="text-muted-foreground">
           Loading…
         </p>
       )}
       {isError && (
-        <p role="alert" className="text-red-600">
+        <p role="alert" className="text-sm font-medium text-destructive">
           Could not load service users.
         </p>
       )}
 
-      {data && data.length === 0 && <p className="text-gray-500">No service users found.</p>}
+      {data && data.length === 0 && (
+        <Card>
+          <CardContent className="p-10 text-center text-muted-foreground">
+            No service users found.
+          </CardContent>
+        </Card>
+      )}
 
       {data && data.length > 0 && (
-        <table className="w-full border-collapse text-left">
-          <thead>
-            <tr className="border-b border-gray-200 text-sm text-gray-600">
-              <th className="py-2 pr-4">Name</th>
-              <th className="py-2 pr-4">Address</th>
-              <th className="py-2 pr-4">Contracted hours</th>
-              <th className="py-2 pr-4">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((su) => (
-              <ServiceUserRow key={su.id} serviceUser={su} />
-            ))}
-          </tbody>
-        </table>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead>Contracted hours</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((su) => (
+                  <ServiceUserRow key={su.id} serviceUser={su} />
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
     </section>
   );
@@ -89,21 +117,24 @@ export default function ServiceUsersPage() {
 
 function ServiceUserRow({ serviceUser }: { serviceUser: ServiceUser }) {
   return (
-    <tr className="border-b border-gray-100">
-      <td className="py-2 pr-4">
-        <Link to={`/service-users/${serviceUser.id}`} className="text-blue-700 underline">
+    <TableRow>
+      <TableCell>
+        <Link
+          to={`/service-users/${serviceUser.id}`}
+          className="font-medium text-primary hover:underline"
+        >
           {serviceUser.name}
         </Link>
-      </td>
-      <td className="py-2 pr-4 text-gray-700">{serviceUser.address ?? '—'}</td>
-      <td className="py-2 pr-4 text-gray-700">{serviceUser.contractedHours}</td>
-      <td className="py-2 pr-4">
+      </TableCell>
+      <TableCell className="text-muted-foreground">{serviceUser.address ?? '—'}</TableCell>
+      <TableCell className="text-muted-foreground">{serviceUser.contractedHours}</TableCell>
+      <TableCell>
         {serviceUser.active ? (
-          <span className="text-green-700">Active</span>
+          <Badge variant="success">Active</Badge>
         ) : (
-          <span className="text-gray-500">Inactive</span>
+          <Badge variant="secondary">Inactive</Badge>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }

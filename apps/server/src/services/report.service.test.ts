@@ -23,6 +23,7 @@ const serviceUser: ServiceUser = {
   name: 'Ada Lovelace',
   address: '1 Analytical Ave',
   contractedHours: 10, // 600 contracted minutes
+  homeId: null,
   active: true,
   createdAt: '2026-08-01T00:00:00.000Z',
   updatedAt: '2026-08-01T00:00:00.000Z',

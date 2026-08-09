@@ -25,6 +25,7 @@ const sample: ServiceUser = {
   name: 'Ada Lovelace',
   address: '1 Analytical Ave',
   contractedHours: 12.5,
+  homeId: null,
   active: true,
   createdAt: '2026-08-08T00:00:00.000Z',
   updatedAt: '2026-08-08T00:00:00.000Z',

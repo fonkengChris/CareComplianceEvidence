@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { CalendarDays, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { fetchMyAssignments } from '../lib/staff-assignments';
 import { fetchWeekPlans } from '../lib/week-plans';
 
@@ -16,22 +18,28 @@ export default function StaffDashboardPage() {
   const weekPlans = useQuery({ queryKey: ['week-plans'], queryFn: () => fetchWeekPlans() });
 
   return (
-    <section className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Welcome, {user?.name}</h1>
-      <h2 className="text-lg font-medium">Your service users</h2>
+    <section className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Welcome, {user?.name}</h1>
+        <p className="text-sm text-muted-foreground">Your assigned service users and week plans.</p>
+      </div>
 
       {(assignments.isLoading || weekPlans.isLoading) && (
-        <p role="status" className="text-gray-500">
+        <p role="status" className="text-muted-foreground">
           Loading…
         </p>
       )}
       {assignments.isError && (
-        <p role="alert" className="text-red-600">
+        <p role="alert" className="text-sm font-medium text-destructive">
           Could not load your assignments.
         </p>
       )}
       {assignments.data && assignments.data.length === 0 && (
-        <p className="text-gray-500">You have no assigned service users yet.</p>
+        <Card>
+          <CardContent className="p-10 text-center text-muted-foreground">
+            You have no assigned service users yet.
+          </CardContent>
+        </Card>
       )}
 
       {assignments.data && assignments.data.length > 0 && (
@@ -39,24 +47,34 @@ export default function StaffDashboardPage() {
           {assignments.data.map((su) => {
             const plans = (weekPlans.data ?? []).filter((p) => p.serviceUserId === su.id);
             return (
-              <li key={su.id} className="flex flex-col gap-1 rounded-lg border border-gray-200 p-4">
-                <span className="font-medium">{su.name}</span>
-                {plans.length === 0 ? (
-                  <span className="text-sm text-gray-500">No week plans yet.</span>
-                ) : (
-                  <ul className="flex flex-col gap-1">
-                    {plans.map((plan) => (
-                      <li key={plan.id}>
-                        <Link
-                          to={`/week-plans/${plan.id}/record`}
-                          className="text-blue-700 underline"
-                        >
-                          Record — week of {plan.weekCommencing}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              <li key={su.id}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{su.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {plans.length === 0 ? (
+                      <span className="text-sm text-muted-foreground">No week plans yet.</span>
+                    ) : (
+                      <ul className="flex flex-col gap-2">
+                        {plans.map((plan) => (
+                          <li key={plan.id}>
+                            <Link
+                              to={`/week-plans/${plan.id}/record`}
+                              className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium transition-colors hover:bg-accent"
+                            >
+                              <span className="flex items-center gap-2">
+                                <CalendarDays className="size-4 text-muted-foreground" />
+                                Record — week of {plan.weekCommencing}
+                              </span>
+                              <ChevronRight className="size-4 text-muted-foreground" />
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
               </li>
             );
           })}

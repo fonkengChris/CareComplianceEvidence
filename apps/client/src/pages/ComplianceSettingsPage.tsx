@@ -3,7 +3,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { fetchComplianceSettings, updateComplianceSettings } from '../lib/compliance';
+import { toErrorMessage } from '../lib/errors';
 
 /**
  * Manager-only screen to view/edit the 🟢/🟡/🔴 compliance boundaries (Phase 6). These are
@@ -47,14 +52,14 @@ export default function ComplianceSettingsPage() {
 
   if (settings.isLoading) {
     return (
-      <p role="status" className="text-gray-500">
+      <p role="status" className="text-muted-foreground">
         Loading…
       </p>
     );
   }
   if (settings.isError) {
     return (
-      <p role="alert" className="text-red-600">
+      <p role="alert" className="text-sm font-medium text-destructive">
         Could not load compliance settings.
       </p>
     );
@@ -67,55 +72,66 @@ export default function ComplianceSettingsPage() {
   ];
 
   return (
-    <section className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Compliance thresholds</h1>
-      <p className="max-w-md text-sm text-gray-600">
-        Percentages of a service user&apos;s weekly contracted hours. Must satisfy amber ≤ green ≤ red.
-      </p>
+    <section className="mx-auto flex w-full max-w-lg flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Compliance thresholds</h1>
+        <p className="text-sm text-muted-foreground">
+          Percentages of a service user&apos;s weekly contracted hours. Must satisfy amber ≤ green ≤
+          red.
+        </p>
+      </div>
 
-      <form
-        onSubmit={handleSubmit((values) => mutation.mutate(values))}
-        className="flex w-full max-w-md flex-col gap-4"
-        aria-label="Compliance thresholds"
-      >
-        {mutation.isError && (
-          <p role="alert" className="text-red-600">
-            {(mutation.error as Error).message}
-          </p>
-        )}
-        {mutation.isSuccess && (
-          <p role="status" className="text-green-700">
-            Thresholds saved.
-          </p>
-        )}
-
-        {fields.map((f) => (
-          <label key={f.name} className="flex flex-col gap-1">
-            <span className="text-sm font-medium">{f.label}</span>
-            <input
-              type="number"
-              min="0"
-              aria-label={f.label}
-              {...register(f.name, { valueAsNumber: true })}
-              className="w-32 rounded border border-gray-300 p-2"
-            />
-            <span className="text-xs text-gray-500">{f.hint}</span>
-            {errors[f.name] && (
-              <span role="alert" className="text-sm text-red-600">
-                {errors[f.name]?.message}
-              </span>
+      <Card>
+        <CardHeader>
+          <CardTitle>Status bands</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={handleSubmit((values) => mutation.mutate(values))}
+            className="flex flex-col gap-5"
+            aria-label="Compliance thresholds"
+          >
+            {mutation.isError && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                {toErrorMessage(mutation.error)}
+              </p>
             )}
-          </label>
-        ))}
+            {mutation.isSuccess && (
+              <p role="status" className="text-sm font-medium text-success">
+                Thresholds saved.
+              </p>
+            )}
 
-        <button
-          type="submit"
-          disabled={isSubmitting || mutation.isPending}
-          className="self-start rounded bg-blue-600 px-4 py-2 font-medium text-white disabled:opacity-50"
-        >
-          {mutation.isPending ? 'Saving…' : 'Save thresholds'}
-        </button>
-      </form>
+            {fields.map((f) => (
+              <div key={f.name} className="flex flex-col gap-1.5">
+                <Label htmlFor={f.name}>{f.label}</Label>
+                <Input
+                  id={f.name}
+                  type="number"
+                  min="0"
+                  aria-label={f.label}
+                  {...register(f.name, { valueAsNumber: true })}
+                  className="w-32"
+                />
+                <span className="text-xs text-muted-foreground">{f.hint}</span>
+                {errors[f.name] && (
+                  <span role="alert" className="text-sm text-destructive">
+                    {errors[f.name]?.message}
+                  </span>
+                )}
+              </div>
+            ))}
+
+            <Button
+              type="submit"
+              disabled={isSubmitting || mutation.isPending}
+              className="self-start"
+            >
+              {mutation.isPending ? 'Saving…' : 'Save thresholds'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </section>
   );
 }

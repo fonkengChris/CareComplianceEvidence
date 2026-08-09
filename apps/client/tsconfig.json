@@ -3,7 +3,12 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["bun"]
+    "types": ["bun"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@care/shared": ["../../packages/shared/src/index.ts"]
+    }
   },
   "include": ["src", "vite.config.ts", "happydom.ts"]
 }

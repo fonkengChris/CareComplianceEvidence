@@ -19,15 +19,39 @@ staffAssignmentRouter.get(
   staffAssignmentController.me,
 );
 staffAssignmentRouter.get(
+  '/my-homes',
+  requireAuth,
+  requireRole('STAFF', 'MANAGER'),
+  staffAssignmentController.myHomes,
+);
+staffAssignmentRouter.get(
   '/service-user/:serviceUserId',
   requireAuth,
   canManage,
   staffAssignmentController.listForServiceUser,
 );
+staffAssignmentRouter.get(
+  '/home/:homeId',
+  requireAuth,
+  canManage,
+  staffAssignmentController.listForHome,
+);
 staffAssignmentRouter.post('/', requireAuth, canManage, staffAssignmentController.create);
+staffAssignmentRouter.post(
+  '/home',
+  requireAuth,
+  canManage,
+  staffAssignmentController.createHomeAssignment,
+);
 staffAssignmentRouter.delete(
   '/service-user/:serviceUserId/staff/:staffId',
   requireAuth,
   canManage,
   staffAssignmentController.remove,
+);
+staffAssignmentRouter.delete(
+  '/home/:homeId/staff/:staffId',
+  requireAuth,
+  canManage,
+  staffAssignmentController.removeHomeAssignment,
 );

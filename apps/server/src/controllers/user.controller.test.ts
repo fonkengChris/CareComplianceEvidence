@@ -1,14 +1,18 @@
 import type { User } from '@care/shared';
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import type { Request, Response } from 'express';
+import type { UpdateUserResult } from '../services/user.service';
 
 /**
  * Controller test stubs the service via mock.module — no DB or bound port. Role
- * enforcement lives in middleware; this only checks the read passes rows through.
+ * enforcement lives in middleware; this checks the read passes rows through and the
+ * edit maps the service's typed result to the right status code.
  */
 
 const serviceMock = {
   listUsers: mock((): Promise<User[]> => Promise.resolve([])),
+  getUser: mock((): Promise<User | null> => Promise.resolve(null)),
+  updateUser: mock((): Promise<UpdateUserResult> => Promise.resolve({ ok: true, value: sample })),
 };
 
 mock.module('../services/user.service', () => serviceMock);
@@ -43,6 +47,8 @@ function mockRes() {
 
 afterEach(() => {
   serviceMock.listUsers.mockReset();
+  serviceMock.getUser.mockReset();
+  serviceMock.updateUser.mockReset();
 });
 
 describe('list', () => {
@@ -52,5 +58,64 @@ describe('list', () => {
     await controller.list({} as unknown as Request, res);
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual([sample]);
+  });
+});
+
+describe('getById', () => {
+  it('404s when the user does not exist', async () => {
+    serviceMock.getUser.mockResolvedValueOnce(null);
+    const res = mockRes();
+    await controller.getById({ params: { id: sample.id } } as unknown as Request, res);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('returns the user when found', async () => {
+    serviceMock.getUser.mockResolvedValueOnce(sample);
+    const res = mockRes();
+    await controller.getById({ params: { id: sample.id } } as unknown as Request, res);
+    expect(res.body).toEqual(sample);
+  });
+});
+
+describe('update', () => {
+  it('400s on an invalid body', async () => {
+    const res = mockRes();
+    await controller.update(
+      { params: { id: sample.id }, body: { email: 'not-an-email' } } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(serviceMock.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('404s when the id is unknown', async () => {
+    serviceMock.updateUser.mockResolvedValueOnce({ ok: false, reason: 'not-found' });
+    const res = mockRes();
+    await controller.update(
+      { params: { id: sample.id }, body: { name: 'New name' } } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('409s on a duplicate email', async () => {
+    serviceMock.updateUser.mockResolvedValueOnce({ ok: false, reason: 'conflict' });
+    const res = mockRes();
+    await controller.update(
+      { params: { id: sample.id }, body: { email: 'taken@example.com' } } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(409);
+  });
+
+  it('200s with the updated user', async () => {
+    serviceMock.updateUser.mockResolvedValueOnce({ ok: true, value: sample });
+    const res = mockRes();
+    await controller.update(
+      { params: { id: sample.id }, body: { name: 'Morgan Manager' } } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual(sample);
   });
 });

@@ -40,6 +40,16 @@ export const activityTypes = pgTable('activity_types', {
   updatedAt,
 });
 
+export const homes = pgTable('homes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  address: text('address'),
+  // Soft-disabled via `active` (never hard deleted) so service-user history survives.
+  active: boolean('active').notNull().default(true),
+  createdAt,
+  updatedAt,
+});
+
 export const serviceUsers = pgTable('service_users', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
@@ -47,6 +57,9 @@ export const serviceUsers = pgTable('service_users', {
   // Contract term in HOURS (not row-summed). numeric → JS string via Drizzle;
   // the service layer coerces to a number for the API contract.
   contractedHours: numeric('contracted_hours', { precision: 6, scale: 2 }).notNull(),
+  // The home this service user belongs to (nullable). `set null` on delete keeps the
+  // service user if its home is ever removed — but homes are soft-deleted in practice.
+  homeId: uuid('home_id').references(() => homes.id, { onDelete: 'set null' }),
   active: boolean('active').notNull().default(true),
   createdAt,
   updatedAt,
@@ -136,6 +149,29 @@ export const staffAssignments = pgTable(
   ],
 );
 
+export const staffHomeAssignments = pgTable(
+  'staff_home_assignments',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // Group-based supervision: a staff member assigned to a home covers every service
+    // user in it. Complements `staff_assignments` (direct per-service-user) — a staff
+    // member's reach is the union of both.
+    staffId: uuid('staff_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    homeId: uuid('home_id')
+      .notNull()
+      .references(() => homes.id, { onDelete: 'cascade' }),
+    createdAt,
+  },
+  (t) => [
+    // At most one row per (staff, home) — makes assign idempotent.
+    unique('staff_home_assignments_staff_home').on(t.staffId, t.homeId),
+    // "My homes" / access-resolution read path keyed by staff.
+    index('staff_home_assignments_staff_idx').on(t.staffId),
+  ],
+);
+
 export const refreshTokens = pgTable(
   'refresh_tokens',
   {
@@ -187,7 +223,16 @@ export const auditLogs = pgTable(
   (t) => [index('audit_logs_entity_idx').on(t.entityType, t.entityId)],
 );
 
-export const serviceUsersRelations = relations(serviceUsers, ({ many }) => ({
+export const homesRelations = relations(homes, ({ many }) => ({
+  serviceUsers: many(serviceUsers),
+  staffHomeAssignments: many(staffHomeAssignments),
+}));
+
+export const serviceUsersRelations = relations(serviceUsers, ({ one, many }) => ({
+  home: one(homes, {
+    fields: [serviceUsers.homeId],
+    references: [homes.id],
+  }),
   weekPlans: many(weekPlans),
   staffAssignments: many(staffAssignments),
 }));
@@ -214,6 +259,18 @@ export const dayEntriesRelations = relations(dayEntries, ({ one }) => ({
 export const usersRelations = relations(users, ({ many }) => ({
   refreshTokens: many(refreshTokens),
   staffAssignments: many(staffAssignments),
+  staffHomeAssignments: many(staffHomeAssignments),
+}));
+
+export const staffHomeAssignmentsRelations = relations(staffHomeAssignments, ({ one }) => ({
+  staff: one(users, {
+    fields: [staffHomeAssignments.staffId],
+    references: [users.id],
+  }),
+  home: one(homes, {
+    fields: [staffHomeAssignments.homeId],
+    references: [homes.id],
+  }),
 }));
 
 export const staffAssignmentsRelations = relations(staffAssignments, ({ one }) => ({

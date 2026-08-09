@@ -1,5 +1,14 @@
 import type { AuditLogView } from '@care/shared';
 import { useQuery } from '@tanstack/react-query';
+import { Card, CardContent } from '../components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../components/ui/table';
 import { describeChange, fetchAuditLogs } from '../lib/audit';
 
 /**
@@ -26,42 +35,54 @@ export default function AuditHistoryPage() {
   });
 
   return (
-    <section className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Audit History</h1>
-      <p className="text-sm text-gray-500">
-        Every tracked change — who made it, what changed, and when. Read-only.
-      </p>
+    <section className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Audit History</h1>
+        <p className="text-sm text-muted-foreground">
+          Every tracked change — who made it, what changed, and when. Read-only.
+        </p>
+      </div>
 
       {isLoading && (
-        <p role="status" className="text-gray-500">
+        <p role="status" className="text-muted-foreground">
           Loading…
         </p>
       )}
       {isError && (
-        <p role="alert" className="text-red-600">
+        <p role="alert" className="text-sm font-medium text-destructive">
           Could not load the audit history.
         </p>
       )}
 
-      {data && data.length === 0 && <p className="text-gray-500">No changes recorded yet.</p>}
+      {data && data.length === 0 && (
+        <Card>
+          <CardContent className="p-10 text-center text-muted-foreground">
+            No changes recorded yet.
+          </CardContent>
+        </Card>
+      )}
 
       {data && data.length > 0 && (
-        <table className="w-full border-collapse text-left">
-          <thead>
-            <tr className="border-b border-gray-200 text-sm text-gray-600">
-              <th className="py-2 pr-4">When</th>
-              <th className="py-2 pr-4">Who</th>
-              <th className="py-2 pr-4">Record</th>
-              <th className="py-2 pr-4">Change</th>
-              <th className="py-2 pr-4">From → To</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((log) => (
-              <AuditRow key={log.id} log={log} />
-            ))}
-          </tbody>
-        </table>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>When</TableHead>
+                  <TableHead>Who</TableHead>
+                  <TableHead>Record</TableHead>
+                  <TableHead>Change</TableHead>
+                  <TableHead>From → To</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((log) => (
+                  <AuditRow key={log.id} log={log} />
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
     </section>
   );
@@ -69,14 +90,16 @@ export default function AuditHistoryPage() {
 
 function AuditRow({ log }: { log: AuditLogView }) {
   return (
-    <tr className="border-b border-gray-100 align-top text-sm">
-      <td className="py-2 pr-4 whitespace-nowrap text-gray-700">{formatWhen(log.createdAt)}</td>
-      <td className="py-2 pr-4 text-gray-700">{orDash(log.actorName)}</td>
-      <td className="py-2 pr-4 text-gray-700">{orDash(log.entityLabel)}</td>
-      <td className="py-2 pr-4 text-gray-700">{describeChange(log)}</td>
-      <td className="py-2 pr-4 text-gray-700">
+    <TableRow className="align-top">
+      <TableCell className="whitespace-nowrap text-muted-foreground">
+        {formatWhen(log.createdAt)}
+      </TableCell>
+      <TableCell>{orDash(log.actorName)}</TableCell>
+      <TableCell className="text-muted-foreground">{orDash(log.entityLabel)}</TableCell>
+      <TableCell className="text-muted-foreground">{describeChange(log)}</TableCell>
+      <TableCell className="text-muted-foreground">
         {log.field ? `${orDash(log.fromValue)} → ${orDash(log.toValue)}` : orDash(log.toValue)}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }

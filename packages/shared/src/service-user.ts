@@ -13,6 +13,9 @@ export const serviceUserSchema = z.object({
   name: z.string().min(1),
   address: z.string().nullable(),
   contractedHours: z.number().min(0),
+  // The home this service user belongs to, or null if unassigned. Staff assigned to
+  // the home gain access to this service user (group-based supervision).
+  homeId: z.string().uuid().nullable(),
   active: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -22,6 +25,7 @@ export const serviceUserCreateSchema = z.object({
   name: z.string().min(1),
   address: z.string().nullable().optional(),
   contractedHours: z.number().min(0),
+  homeId: z.string().uuid().nullable().optional(),
   active: z.boolean().optional(),
 });
 

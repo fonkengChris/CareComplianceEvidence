@@ -9,4 +9,8 @@ import { requireAuth, requireRole } from '../middleware/auth';
  */
 export const userRouter = Router();
 
-userRouter.get('/', requireAuth, requireRole('MANAGER'), userController.list);
+const canManage = requireRole('MANAGER');
+
+userRouter.get('/', requireAuth, canManage, userController.list);
+userRouter.get('/:id', requireAuth, canManage, userController.getById);
+userRouter.put('/:id', requireAuth, canManage, userController.update);

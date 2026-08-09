@@ -6,6 +6,7 @@ import { activityTypeRouter } from './routes/activity-type.routes';
 import { auditRouter } from './routes/audit.routes';
 import { authRouter } from './routes/auth.routes';
 import { complianceRouter } from './routes/compliance.routes';
+import { homeRouter } from './routes/home.routes';
 import { serviceUserRouter } from './routes/service-user.routes';
 import { staffAssignmentRouter } from './routes/staff-assignment.routes';
 import { summaryRouter } from './routes/summary.routes';
@@ -29,6 +30,7 @@ app.get('/health', async (_req, res) => {
 app.use('/auth', authRouter);
 app.use('/users', userRouter);
 app.use('/service-users', serviceUserRouter);
+app.use('/homes', homeRouter);
 app.use('/week-plans', weekPlanRouter);
 app.use('/activity-types', activityTypeRouter);
 app.use('/assignments', staffAssignmentRouter);

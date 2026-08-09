@@ -98,7 +98,7 @@ afterEach(() => {
 });
 
 describe('ServiceUserDetailPage assignments', () => {
-  it('lets a manager assign a staff member', async () => {
+  it('lets a manager assign and then remove a staff member', async () => {
     mockApi('MANAGER');
     renderDetail();
     fireEvent.change(await screen.findByLabelText('Assign a staff member'), {
@@ -106,12 +106,19 @@ describe('ServiceUserDetailPage assignments', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
     await waitFor(() => expect(assignCount).toBe(1));
+
+    // After assigning, the list shows Sam with a Remove button (DELETE).
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(unassignCount).toBe(1));
   });
 
-  it('hides the assignment section from non-managers', async () => {
+  it('hides all write controls from an auditor (read-only view)', async () => {
     mockApi('AUDITOR');
     renderDetail();
     expect(await screen.findByText('Alice Morgan')).toBeDefined();
+    // Read-only: no assignment picker, no Edit link, no Deactivate toggle.
     expect(screen.queryByLabelText('Assign a staff member')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Deactivate|Reactivate/ })).toBeNull();
   });
 });

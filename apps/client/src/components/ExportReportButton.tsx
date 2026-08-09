@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toErrorMessage } from '../lib/errors';
 import { fetchWeekPlanReport } from '../lib/reports';
 
 /**
@@ -27,7 +28,7 @@ export default function ExportReportButton({
       const { downloadReportPdf } = await import('./ReportDocument');
       await downloadReportPdf(data);
     } catch (err) {
-      setError((err as Error).message);
+      setError(toErrorMessage(err));
     } finally {
       setBusy(false);
     }

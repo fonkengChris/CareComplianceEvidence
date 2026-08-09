@@ -73,4 +73,16 @@ describe('ProtectedRoute', () => {
     renderGuarded(['MANAGER']);
     expect(await screen.findByText('Home')).toBeDefined();
   });
+
+  it('lets an auditor into a MANAGER/AUDITOR read route', async () => {
+    mockSession('AUDITOR');
+    renderGuarded(['MANAGER', 'AUDITOR']);
+    expect(await screen.findByText('Secret Page')).toBeDefined();
+  });
+
+  it('bounces an auditor from a manager-only route', async () => {
+    mockSession('AUDITOR');
+    renderGuarded(['MANAGER']);
+    expect(await screen.findByText('Home')).toBeDefined();
+  });
 });

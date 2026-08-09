@@ -29,6 +29,7 @@ export function toPublicServiceUser(row: ServiceUserRow): ServiceUser {
     name: row.name,
     address: row.address,
     contractedHours: Number(row.contractedHours),
+    homeId: row.homeId,
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -64,6 +65,7 @@ export async function createServiceUser(input: ServiceUserCreate): Promise<Servi
       name: input.name,
       address: input.address ?? null,
       contractedHours: input.contractedHours.toString(),
+      ...(input.homeId === undefined ? {} : { homeId: input.homeId }),
       // `active` defaults to true at the DB when omitted.
       ...(input.active === undefined ? {} : { active: input.active }),
     })
@@ -86,6 +88,7 @@ export async function updateServiceUser(
   if (input.name !== undefined) patch.name = input.name;
   if (input.address !== undefined) patch.address = input.address;
   if (input.contractedHours !== undefined) patch.contractedHours = input.contractedHours.toString();
+  if (input.homeId !== undefined) patch.homeId = input.homeId;
   if (input.active !== undefined) patch.active = input.active;
 
   const row = await db.transaction(async (tx) => {
