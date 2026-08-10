@@ -16,6 +16,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "baseUrl": ".",
+    // baseUrl is deprecated in TS 5.9 but still required by Bun's runtime tsconfig-paths
+    // resolution (e.g. the client's "@/*" alias); silence the deprecation until Bun no
+    // longer needs it.
+    "ignoreDeprecations": "5.0",
     "paths": {
       "@care/shared": ["./packages/shared/src/index.ts"]
     }

@@ -8,10 +8,26 @@ import type { ComplianceStatus } from '@care/shared';
  */
 
 const STYLES: Record<ComplianceStatus, { label: string; className: string; dot: string }> = {
-  ON_TRACK: { label: 'On Track', className: 'bg-green-100 text-green-800', dot: '🟢' },
-  UNDER_TARGET: { label: 'Under Target', className: 'bg-amber-100 text-amber-800', dot: '🟡' },
-  OVER_HOURS: { label: 'Over Hours', className: 'bg-red-100 text-red-800', dot: '🔴' },
-  ATTENTION: { label: 'Attention Required', className: 'bg-red-100 text-red-800', dot: '🔴' },
+  ON_TRACK: {
+    label: 'On Track',
+    className: 'bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300',
+    dot: '🟢',
+  },
+  UNDER_TARGET: {
+    label: 'Under Target',
+    className: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
+    dot: '🟡',
+  },
+  OVER_HOURS: {
+    label: 'Over Hours',
+    className: 'bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300',
+    dot: '🔴',
+  },
+  ATTENTION: {
+    label: 'Attention Required',
+    className: 'bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300',
+    dot: '🔴',
+  },
 };
 
 export default function ComplianceBadge({ status }: { status: ComplianceStatus }) {

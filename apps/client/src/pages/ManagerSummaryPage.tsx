@@ -5,48 +5,26 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import ComplianceBadge from '../components/ComplianceBadge';
+import ComplianceRing from '../components/ComplianceRing';
 import ExportReportButton from '../components/ExportReportButton';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../components/ui/table';
 import { cn } from '@/lib/utils';
 import { fetchWeeklySummary } from '../lib/summary';
+import { currentWeekCommencing, shiftWeek } from '../lib/week';
 
 /**
  * Manager/auditor weekly summary (Phase 7): every active service user's status for one week
- * in a single screen, without opening individual plans. A week picker steps ±7 days; each
- * planned row expands to that service user's per-activity breakdown and a link into the plan.
- * Every figure comes from the backend (CLAUDE.md: the frontend displays, never derives).
+ * on a single screen, without opening individual plans. A ring-card grid replaces the old
+ * table — each planned card expands to that service user's per-activity breakdown and a link
+ * into the plan. Every figure comes from the backend (CLAUDE.md: the frontend displays, never
+ * derives); the overview band only sums those figures for at-a-glance context.
  */
 
 /** Minutes → a compact hours string, matching WeekComplianceSummary. */
 function toHours(minutes: number): string {
   return `${(minutes / 60).toFixed(1)}h`;
 }
-
-/** The Monday of the week containing `now`, as YYYY-MM-DD (mirrors the server default). */
-function currentWeekCommencing(now: Date = new Date()): string {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const sinceMonday = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - sinceMonday);
-  return d.toISOString().slice(0, 10);
-}
-
-/** Shift a YYYY-MM-DD date by whole days, staying on the Monday grid. */
-function shiftWeek(weekCommencing: string, deltaDays: number): string {
-  const d = new Date(`${weekCommencing}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + deltaDays);
-  return d.toISOString().slice(0, 10);
-}
-
-const COLUMN_COUNT = 8;
 
 export default function ManagerSummaryPage() {
   const { user } = useAuth();
@@ -67,6 +45,8 @@ export default function ManagerSummaryPage() {
       return next;
     });
   }
+
+  const planned = data?.rows.filter((r) => r.compliance !== null) ?? [];
 
   return (
     <section className="flex flex-col gap-6">
@@ -125,41 +105,83 @@ export default function ManagerSummaryPage() {
       )}
 
       {data && data.rows.length > 0 && (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Service User</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Delivered</TableHead>
-                  <TableHead>Contracted</TableHead>
-                  <TableHead>Remaining</TableHead>
-                  <TableHead>Delivery</TableHead>
-                  <TableHead>Missed</TableHead>
-                  <TableHead>Refused</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.rows.map((row) => (
-                  <SummaryRow
-                    key={row.serviceUser.id}
-                    row={row}
-                    isManager={isManager}
-                    expanded={expanded.has(row.serviceUser.id)}
-                    onToggle={() => toggle(row.serviceUser.id)}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <>
+          <OverviewBand rows={data.rows} planned={planned} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {data.rows.map((row) => (
+              <SummaryCard
+                key={row.serviceUser.id}
+                row={row}
+                isManager={isManager}
+                expanded={expanded.has(row.serviceUser.id)}
+                onToggle={() => toggle(row.serviceUser.id)}
+              />
+            ))}
+          </div>
+        </>
       )}
     </section>
   );
 }
 
-function SummaryRow({
+/**
+ * At-a-glance band: an overall delivery ring plus status counts. Pure display aggregation of the
+ * backend figures — it neither computes nor overrides any compliance status.
+ */
+function OverviewBand({
+  rows,
+  planned,
+}: {
+  rows: WeeklySummaryRow[];
+  planned: WeeklySummaryRow[];
+}) {
+  const delivered = planned.reduce((sum, r) => sum + (r.compliance?.deliveredMinutes ?? 0), 0);
+  const contracted = planned.reduce((sum, r) => sum + (r.compliance?.contractedMinutes ?? 0), 0);
+  const overallPct = contracted > 0 ? Math.round((delivered / contracted) * 100) : 0;
+  const reviewTotal = rows.reduce((sum, r) => sum + r.reviewHintCount, 0);
+  const onTrack = planned.filter((r) => r.compliance?.status === 'ON_TRACK').length;
+  const attention = planned.filter(
+    (r) => r.compliance?.status === 'ATTENTION' || r.compliance?.status === 'OVER_HOURS'
+  ).length;
+  const underTarget = planned.filter((r) => r.compliance?.status === 'UNDER_TARGET').length;
+
+  return (
+    <Card>
+      <CardContent className="flex flex-wrap items-center gap-6 p-6 pt-6">
+        <div className="flex items-center gap-5">
+          <ComplianceRing deliveryPct={overallPct} size="lg" />
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Overall delivery</p>
+            <p className="font-display text-lg font-semibold">
+              {toHours(delivered)} <span className="text-muted-foreground">of</span>{' '}
+              {toHours(contracted)}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {planned.length} planned · {rows.length - planned.length} without a plan
+            </p>
+          </div>
+        </div>
+        <dl className="flex flex-wrap gap-x-8 gap-y-3">
+          <Fact label="On track" value={onTrack} />
+          <Fact label="Under target" value={underTarget} />
+          <Fact label="Attention" value={attention} />
+          <Fact label="To review" value={reviewTotal} />
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="font-display text-2xl font-semibold tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+function SummaryCard({
   row,
   isManager,
   expanded,
@@ -175,76 +197,81 @@ function SummaryRow({
   const detailId = `breakdown-${serviceUser.id}`;
 
   return (
-    <>
-      <TableRow className="align-top">
-        <TableCell>
+    <Card className="flex flex-col">
+      <CardContent className="flex flex-1 flex-col gap-4 p-5 pt-5">
+        <div className="flex items-start gap-4">
           {hasPlan ? (
-            <button
-              type="button"
-              onClick={onToggle}
-              aria-expanded={expanded}
-              aria-controls={detailId}
-              className="flex items-center gap-1 text-left font-medium text-primary hover:underline"
-            >
-              <ChevronDown
-                className={cn('size-4 transition-transform', expanded ? '' : '-rotate-90')}
-              />
-              {serviceUser.name}
-            </button>
+            <ComplianceRing status={compliance.status} deliveryPct={compliance.deliveryPct} />
           ) : (
-            <span className="font-medium">{serviceUser.name}</span>
+            <div className="grid size-28 place-items-center rounded-full border-2 border-dashed border-border text-2xl text-muted-foreground">
+              —
+            </div>
           )}
+          <div className="min-w-0 flex-1">
+            {hasPlan ? (
+              <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={expanded}
+                aria-controls={detailId}
+                className="flex items-center gap-1 text-left font-semibold text-primary hover:underline"
+              >
+                <ChevronDown
+                  className={cn('size-4 transition-transform', expanded ? '' : '-rotate-90')}
+                />
+                {serviceUser.name}
+              </button>
+            ) : (
+              <span className="font-semibold">{serviceUser.name}</span>
+            )}
+
+            {hasPlan ? (
+              <div className="mt-2 flex flex-col gap-2">
+                <ComplianceBadge status={compliance.status} />
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <Metric label="Delivered" value={toHours(compliance.deliveredMinutes)} />
+                  <Metric label="Contracted" value={toHours(compliance.contractedMinutes)} />
+                  <Metric
+                    label={compliance.remainingMinutes >= 0 ? 'Remaining' : 'Over by'}
+                    value={toHours(Math.abs(compliance.remainingMinutes))}
+                  />
+                  <Metric label="Delivery" value={`${compliance.deliveryPct}%`} />
+                </dl>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {isManager ? (
+                  <>
+                    No plan for this week ·{' '}
+                    <Link
+                      to={`/service-users/${serviceUser.id}/week-plans/new`}
+                      className="text-primary hover:underline"
+                    >
+                      Create plan
+                    </Link>
+                  </>
+                ) : (
+                  'No plan for this week'
+                )}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           {row.reviewHintCount > 0 && (
-            <span className="ml-2 text-xs font-medium text-warning">
-              ⚑ {row.reviewHintCount} to review
+            <span className="font-medium text-warning">⚑ {row.reviewHintCount} to review</span>
+          )}
+          {hasPlan && (row.missedCount > 0 || row.refusedCount > 0) && (
+            <span className="tabular-nums">
+              {row.missedCount} missed · {row.refusedCount} refused
             </span>
           )}
-        </TableCell>
-        {hasPlan ? (
-          <>
-            <TableCell>
-              <ComplianceBadge status={compliance.status} />
-            </TableCell>
-            <TableCell className="text-muted-foreground tabular-nums">
-              {toHours(compliance.deliveredMinutes)}
-            </TableCell>
-            <TableCell className="text-muted-foreground tabular-nums">
-              {toHours(compliance.contractedMinutes)}
-            </TableCell>
-            <TableCell className="text-muted-foreground tabular-nums">
-              {compliance.remainingMinutes >= 0
-                ? toHours(compliance.remainingMinutes)
-                : `over by ${toHours(-compliance.remainingMinutes)}`}
-            </TableCell>
-            <TableCell className="text-muted-foreground tabular-nums">
-              {compliance.deliveryPct}%
-            </TableCell>
-            <TableCell className="text-muted-foreground tabular-nums">{row.missedCount}</TableCell>
-            <TableCell className="text-muted-foreground tabular-nums">{row.refusedCount}</TableCell>
-          </>
-        ) : (
-          <TableCell className="text-muted-foreground" colSpan={COLUMN_COUNT - 1}>
-            {isManager ? (
-              <>
-                No plan ·{' '}
-                <Link
-                  to={`/service-users/${serviceUser.id}/week-plans/new`}
-                  className="text-primary hover:underline"
-                >
-                  Create plan
-                </Link>
-              </>
-            ) : (
-              'No plan'
-            )}
-          </TableCell>
-        )}
-      </TableRow>
+        </div>
 
-      {hasPlan && expanded && (
-        <TableRow id={detailId} className="bg-muted/40 hover:bg-muted/40">
-          <TableCell className="p-4" colSpan={COLUMN_COUNT}>
-            <div className="mb-2 flex items-center justify-between">
+        {hasPlan && expanded && (
+          <div id={detailId} className="mt-auto border-t border-border pt-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold">Activity breakdown</h2>
               <div className="flex items-center gap-2">
                 <ExportReportButton
@@ -283,9 +310,18 @@ function SummaryRow({
                 </tbody>
               </table>
             )}
-          </TableCell>
-        </TableRow>
-      )}
-    </>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium tabular-nums">{value}</dd>
+    </div>
   );
 }

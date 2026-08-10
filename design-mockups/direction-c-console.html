@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Care Hours Tracker — Direction C · Operations Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#EEF0F5; --panel:#FFFFFF; --panel-2:#F5F6FA; --rail:#161B2E; --rail-2:#1E2740;
+    --ink:#161A28; --ink-soft:#525C74; --ink-faint:#818CA5;
+    --line:#E2E5EE; --line-2:#D2D7E4;
+    --indigo:#4C5BD4; --indigo-soft:#E5E7Fb; --indigo-ink:#2E3AA8;
+    --g:#1E9E5A; --g-cell:#CDEBD8; --g-solid:#1E9E5A;
+    --a:#C98A0E; --a-cell:#F6E7C0; --a-solid:#D79A1B;
+    --r:#D2453B; --r-cell:#F7D6D2; --r-solid:#D2453B;
+    --none:#E7EAF2;
+    --shadow:0 1px 2px rgba(20,28,54,.05), 0 12px 30px -18px rgba(20,28,54,.4);
+  }
+  html[data-theme="dark"]{
+    --bg:#0A0D17; --panel:#111624; --panel-2:#161C2E; --rail:#0C1120; --rail-2:#161E33;
+    --ink:#E9ECF6; --ink-soft:#9AA5C0; --ink-faint:#6C7794;
+    --line:#212940; --line-2:#2A3450;
+    --indigo:#7C89F0; --indigo-soft:#1B2247; --indigo-ink:#A9B2F8;
+    --g:#43C67E; --g-cell:#123726; --g-solid:#39B673;
+    --a:#E0AC45; --a-cell:#3A2E10; --a-solid:#D79A1B;
+    --r:#F0665C; --r-cell:#3B1E1B; --r-solid:#E15349;
+    --none:#1A2138;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 18px 40px -20px rgba(0,0,0,.8);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Inter",system-ui,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+  .display{font-family:"Archivo",sans-serif}
+  button{font:inherit;cursor:pointer} a{color:inherit;text-decoration:none}
+  :focus-visible{outline:2px solid var(--indigo);outline-offset:2px;border-radius:6px}
+
+  .app{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+
+  /* rail */
+  .rail{background:var(--rail);color:#C9D0E6;display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh}
+  .rail .logo{display:flex;align-items:center;gap:11px;padding:6px 8px 20px}
+  .rail .logo .m{width:34px;height:34px;border-radius:9px;background:var(--indigo);display:grid;place-items:center;color:#fff;font-family:"Archivo";font-weight:800;font-size:16px}
+  .rail .logo b{font-family:"Archivo";font-weight:700;font-size:16px;letter-spacing:.01em;color:#fff}
+  .rail .logo small{display:block;font-size:10.5px;color:#7c88ad;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+  .rail .grp{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#606c92;padding:16px 10px 6px;font-weight:700}
+  .rail a{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;font-size:14px;font-weight:500;color:#AAB3D0}
+  .rail a svg{width:17px;height:17px;opacity:.85}
+  .rail a.active{background:var(--rail-2);color:#fff}
+  .rail a.active svg{opacity:1;color:var(--indigo)}
+  html[data-theme="dark"] .rail a.active svg{color:var(--indigo)}
+  .rail a:hover:not(.active){color:#fff;background:rgba(255,255,255,.05)}
+  .rail .spacer{flex:1}
+  .rail .me{display:flex;align-items:center;gap:10px;padding:10px;border-top:1px solid rgba(255,255,255,.08);margin-top:8px}
+  .rail .me .av{width:32px;height:32px;border-radius:50%;background:var(--indigo);display:grid;place-items:center;color:#fff;font-weight:600;font-size:13px}
+  .rail .me b{font-size:13px;color:#fff;display:block;line-height:1.2}
+  .rail .me span{font-size:11px;color:#7c88ad}
+
+  /* main */
+  .main{min-width:0;display:flex;flex-direction:column}
+  .bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 30px}
+  .bar .crumb{font-size:13px;color:var(--ink-faint)}
+  .bar .crumb b{color:var(--ink);font-weight:600}
+  .bar .right{display:flex;align-items:center;gap:12px}
+  .weekpick{display:flex;align-items:center;background:var(--panel-2);border:1px solid var(--line-2);border-radius:9px;overflow:hidden}
+  .weekpick button{width:34px;height:34px;border:none;background:transparent;color:var(--ink-soft);display:grid;place-items:center}
+  .weekpick button:hover{background:var(--line);color:var(--ink)}
+  .weekpick .cur{padding:0 14px;font-size:13px;font-weight:600;font-family:"JetBrains Mono";border-inline:1px solid var(--line-2)}
+  .toggle{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:9px;border:1px solid var(--line-2);background:var(--panel);font-size:13px;font-weight:500;color:var(--ink-soft)}
+  .toggle:hover{color:var(--ink);border-color:var(--indigo)}
+
+  .content{padding:26px 30px 60px}
+  .h-row{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:22px}
+  .kicker{font-family:"JetBrains Mono";font-size:12px;color:var(--indigo-ink);letter-spacing:.08em;text-transform:uppercase}
+  h1{font-family:"Archivo";font-weight:800;font-size:clamp(26px,3.2vw,34px);letter-spacing:-.02em;margin-top:8px}
+  h1 span{color:var(--ink-faint);font-weight:600}
+  .sub{color:var(--ink-soft);font-size:14px;margin-top:4px}
+
+  /* KPI tiles */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);position:relative}
+  .kpi::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:3px;background:var(--indigo)}
+  .kpi.g::before{background:var(--g-solid)} .kpi.r::before{background:var(--r-solid)} .kpi.a::before{background:var(--a-solid)}
+  .kpi .k{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);font-weight:600;padding-left:10px}
+  .kpi .v{font-family:"Archivo";font-weight:700;font-size:28px;letter-spacing:-.02em;padding-left:10px;margin-top:6px}
+  .kpi .v small{font-family:"JetBrains Mono";font-size:14px;color:var(--ink-faint);font-weight:400}
+  .kpi .d{font-size:12px;color:var(--ink-soft);padding-left:10px;margin-top:2px}
+
+  /* console table */
+  .console{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .console-h{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line)}
+  .console-h .t{font-family:"Archivo";font-weight:700;font-size:15px}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--ink-soft);flex-wrap:wrap}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .tbl{width:100%;border-collapse:collapse}
+  .tbl thead th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);font-weight:600;text-align:left;padding:11px 14px;background:var(--panel-2);border-bottom:1px solid var(--line)}
+  .tbl thead th.c{text-align:center} .tbl thead th.r{text-align:right}
+  .tbl tbody td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .tbl tbody tr:last-child td{border-bottom:none}
+  .tbl tbody tr:hover{background:var(--panel-2)}
+  .nm{font-weight:600;font-size:14.5px;display:flex;align-items:center;gap:8px}
+  .nm .loc{font-weight:400;font-size:12px;color:var(--ink-faint)}
+  .flag{font-size:11px;font-weight:600;color:var(--a);font-family:"JetBrains Mono"}
+
+  /* status chip */
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;white-space:nowrap;font-family:"JetBrains Mono"}
+  .chip i{width:7px;height:7px;border-radius:2px}
+  .chip.g{background:var(--g-cell);color:var(--g)} .chip.g i{background:var(--g-solid)}
+  .chip.a{background:var(--a-cell);color:var(--a)} .chip.a i{background:var(--a-solid)}
+  .chip.r{background:var(--r-cell);color:var(--r)} .chip.r i{background:var(--r-solid)}
+
+  /* SIGNATURE: day matrix */
+  .matrix{display:inline-grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .matrix .cell{width:22px;height:22px;border-radius:5px;background:var(--none);display:grid;place-items:center;font-size:9px;font-weight:700;font-family:"JetBrains Mono";color:transparent;position:relative}
+  .matrix .cell.done{background:var(--g-cell);color:var(--g)}
+  .matrix .cell.part{background:var(--a-cell);color:var(--a)}
+  .matrix .cell.miss{background:var(--r-cell);color:var(--r)}
+  .matrix .cell.done::after{content:"✓"} .matrix .cell.part::after{content:"~"} .matrix .cell.miss::after{content:"✕"}
+  .matrix.head .cell{background:transparent;color:var(--ink-faint);font-weight:600;height:16px}
+  .matrix.head .cell::after{content:none}
+
+  .mono.big{font-size:14px;font-weight:500}
+  .mono.big .of{color:var(--ink-faint)}
+  .barmini{width:88px;height:6px;border-radius:3px;background:var(--none);overflow:hidden;margin-top:5px}
+  .barmini i{display:block;height:100%;border-radius:3px}
+  .barmini i.g{background:var(--g-solid)} .barmini i.a{background:var(--a-solid)} .barmini i.r{background:var(--r-solid)}
+  .r{text-align:right} .c{text-align:center}
+  .over{color:var(--r)}
+  .rowbtn{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--indigo-ink);padding:5px 10px;border-radius:7px;border:1px solid var(--line-2);background:var(--panel)}
+  .rowbtn:hover{background:var(--indigo-soft);border-color:var(--indigo)}
+  .noplan{color:var(--ink-faint);font-size:13px;font-style:italic}
+
+  .plate{display:inline-block;margin:44px auto 0;padding:7px 15px;border-radius:8px;background:var(--panel);border:1px solid var(--line-2);font-family:"JetBrains Mono";font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint)}
+
+  @media (max-width:1080px){.kpis{grid-template-columns:repeat(2,1fr)}.hide-md{display:none}}
+  @media (max-width:860px){.app{grid-template-columns:1fr}.rail{position:fixed;left:-260px}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+  <div class="app">
+    <!-- rail -->
+    <aside class="rail">
+      <div class="logo">
+        <span class="m">C</span>
+        <span><b>CareOps</b><small>Hours Tracker</small></span>
+      </div>
+      <div class="grp">Monitor</div>
+      <a href="#" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>Service Users</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Homes</a>
+      <div class="grp">Evidence</div>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Reports</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg>Audit Trail</a>
+      <div class="spacer"></div>
+      <div class="me">
+        <span class="av">RM</span>
+        <span><b>R. Mensah</b><span>Manager</span></span>
+      </div>
+    </aside>
+
+    <!-- main -->
+    <div class="main">
+      <div class="bar">
+        <div class="crumb">Monitor / <b>Weekly Summary</b></div>
+        <div class="right">
+          <div class="weekpick" role="group" aria-label="Select week">
+            <button aria-label="Previous week"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <div class="cur">03 Aug 2026</div>
+            <button aria-label="Next week"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+          <button class="toggle" id="tgl" aria-pressed="false">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M5 5l1.4 1.4M17.6 17.6L19 19M3 12h2M19 12h2M5 19l1.4-1.4M17.6 6.4L19 5"/></svg>
+            <span id="tgl-label">Light</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="h-row">
+          <div>
+            <div class="kicker">Week 03–09 Aug · 7 service users</div>
+            <h1>Weekly Summary <span>/ 1-to-1 delivery</span></h1>
+            <p class="sub">Live delivery status across every active plan. Day cells show the recorded outcome for each shift; totals recalculate as staff record.</p>
+          </div>
+        </div>
+
+        <section class="kpis" aria-label="Key metrics">
+          <div class="kpi"><div class="k">Delivered / Contracted</div><div class="v mono">113.5<small> / 132h</small></div><div class="d">86% of planned hours</div></div>
+          <div class="kpi g"><div class="k">On track</div><div class="v">3 <small style="font-family:'JetBrains Mono';font-size:14px;color:var(--ink-faint)">of 6</small></div><div class="d">≥ 90% delivered</div></div>
+          <div class="kpi r"><div class="k">Attention</div><div class="v">2</div><div class="d">Under target or over hours</div></div>
+          <div class="kpi a"><div class="k">Entries to review</div><div class="v">5</div><div class="d">Flagged missed / refused</div></div>
+        </section>
+
+        <section class="console" aria-label="Service user delivery">
+          <div class="console-h">
+            <span class="t">Delivery board</span>
+            <div class="legend">
+              <span><i style="background:var(--g-solid)"></i>Completed</span>
+              <span><i style="background:var(--a-solid)"></i>Partial / refused</span>
+              <span><i style="background:var(--r-solid)"></i>Missed</span>
+              <span><i style="background:var(--none)"></i>Not planned</span>
+            </div>
+          </div>
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Service user</th>
+                <th>Status</th>
+                <th class="c hide-md">Mon–Sun delivery</th>
+                <th class="r">Delivered</th>
+                <th class="r hide-md">Delivery %</th>
+                <th class="r"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="nm">Amara Okafor <span class="loc">· Willow House</span></div></td>
+                <td><span class="chip g"><i></i>ON TRACK</span></td>
+                <td class="c hide-md"><div class="matrix"><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell part"></div><div class="cell done"></div><div class="cell done"></div></div></td>
+                <td class="r mono big">22.5<span class="of"> /24h</span></td>
+                <td class="r hide-md"><span class="mono">94%</span><div class="barmini"><i class="g" style="width:94%"></i></div></td>
+                <td class="r"><button class="rowbtn">Open</button></td>
+              </tr>
+              <tr>
+                <td><div class="nm">Thomas Whitfield <span class="flag">⚑2</span></div><span class="loc" style="font-size:12px;color:var(--ink-faint)">Willow House · Room 8</span></td>
+                <td><span class="chip a"><i></i>UNDER</span></td>
+                <td class="c hide-md"><div class="matrix"><div class="cell done"></div><div class="cell part"></div><div class="cell miss"></div><div class="cell done"></div><div class="cell"></div><div class="cell part"></div><div class="cell"></div></div></td>
+                <td class="r mono big">12.0<span class="of"> /20h</span></td>
+                <td class="r hide-md"><span class="mono">60%</span><div class="barmini"><i class="a" style="width:60%"></i></div></td>
+                <td class="r"><button class="rowbtn">Open</button></td>
+              </tr>
+              <tr>
+                <td><div class="nm">Grace Bennett <span class="loc">· Elm Lodge</span></div></td>
+                <td><span class="chip g"><i></i>ON TRACK</span></td>
+                <td class="c hide-md"><div class="matrix"><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell"></div><div class="cell done"></div></div></td>
+                <td class="r mono big">15.5<span class="of"> /16h</span></td>
+                <td class="r hide-md"><span class="mono">97%</span><div class="barmini"><i class="g" style="width:97%"></i></div></td>
+                <td class="r"><button class="rowbtn">Open</button></td>
+              </tr>
+              <tr>
+                <td><div class="nm">Idris Rahman <span class="flag">⚑3</span></div><span class="loc" style="font-size:12px;color:var(--ink-faint)">Elm Lodge · Room 3</span></td>
+                <td><span class="chip r"><i></i>ATTENTION</span></td>
+                <td class="c hide-md"><div class="matrix"><div class="cell miss"></div><div class="cell done"></div><div class="cell miss"></div><div class="cell"></div><div class="cell miss"></div><div class="cell part"></div><div class="cell"></div></div></td>
+                <td class="r mono big">6.5<span class="of"> /18h</span></td>
+                <td class="r hide-md"><span class="mono">36%</span><div class="barmini"><i class="r" style="width:36%"></i></div></td>
+                <td class="r"><button class="rowbtn">Open</button></td>
+              </tr>
+              <tr>
+                <td><div class="nm">Eleanor Shaw <span class="loc">· Willow House</span></div></td>
+                <td><span class="chip r"><i></i>OVER HOURS</span></td>
+                <td class="c hide-md"><div class="matrix"><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div></div></td>
+                <td class="r mono big over">27.0<span class="of" style="color:var(--r)"> /24h</span></td>
+                <td class="r hide-md"><span class="mono over">112%</span><div class="barmini"><i class="r" style="width:100%"></i></div></td>
+                <td class="r"><button class="rowbtn">Open</button></td>
+              </tr>
+              <tr>
+                <td><div class="nm">Joyce Adeyemi <span class="loc">· Elm Lodge</span></div></td>
+                <td><span class="chip g"><i></i>ON TRACK</span></td>
+                <td class="c hide-md"><div class="matrix"><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div><div class="cell done"></div></div></td>
+                <td class="r mono big">30.0<span class="of"> /30h</span></td>
+                <td class="r hide-md"><span class="mono">100%</span><div class="barmini"><i class="g" style="width:100%"></i></div></td>
+                <td class="r"><button class="rowbtn">Open</button></td>
+              </tr>
+              <tr>
+                <td><div class="nm">Samuel Price <span class="loc">· Elm Lodge</span></div></td>
+                <td colspan="4"><span class="noplan">No plan recorded for this week.</span></td>
+                <td class="r"><button class="rowbtn" style="color:#fff;background:var(--indigo);border-color:var(--indigo)">Create plan</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <div style="text-align:center"><span class="plate">Direction C — Operations Console</span></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('tgl'), label=document.getElementById('tgl-label');
+    var saved=localStorage.getItem('care-theme');
+    var initial=saved||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+    apply(initial);
+    btn.addEventListener('click',function(){apply(root.getAttribute('data-theme')==='dark'?'light':'dark');localStorage.setItem('care-theme',root.getAttribute('data-theme'));});
+    function apply(t){root.setAttribute('data-theme',t);label.textContent=t==='dark'?'Dark':'Light';btn.setAttribute('aria-pressed',t==='dark');}
+  })();
+</script>
+</body>
+</html>

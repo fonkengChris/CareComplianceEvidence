@@ -48,6 +48,9 @@ const ACTIVITY_NAMES = [
   'Wellbeing',
   'Budgeting',
   'Admin',
+  'Movies',
+  'Cooking',
+  'Walking',
   'Social Inclusion',
   'Personal Care',
   'Exercise',
@@ -113,9 +116,7 @@ await db.transaction(async (tx) => {
 
   // 4. Sample service users + week plan — only when no service users exist yet, so
   //    the block as a whole stays idempotent (service_users has no natural key).
-  const [{ count }] = await tx
-    .select({ count: sql<number>`count(*)::int` })
-    .from(serviceUsers);
+  const [{ count }] = await tx.select({ count: sql<number>`count(*)::int` }).from(serviceUsers);
   if (count > 0) {
     console.log('Sample service users already present — skipping sample data.');
   } else {

@@ -7,6 +7,7 @@ import type { AuthResponse } from '@care/shared';
  * the httpOnly refresh cookie. A request interceptor attaches the bearer token and a
  * response interceptor performs a single-flight refresh + one retry on a 401, then
  * normalises errors so callers reject with the server's message.
+ *
  */
 
 let accessToken: string | null = null;
@@ -63,8 +64,7 @@ api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const config = error.config as
-      | (InternalAxiosRequestConfig & { _retried?: boolean })
-      | undefined;
+      (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
     // Skip the refresh call itself to avoid an infinite loop; every other 401 gets one
     // silent refresh + retry.
     const isRefreshCall = config?.url === '/api/auth/refresh';
