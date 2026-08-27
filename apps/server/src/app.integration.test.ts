@@ -83,38 +83,43 @@ function request(
 describe('AUDITOR is blocked (403) from every write route', () => {
   it('403s on service-user, week-plan, recording, compliance and assignment writes', async () => {
     const token = await tokenFor('AUDITOR');
-    expect(await request('POST', '/service-users', { token, body: {} })).toBe(403);
-    expect(await request('PUT', `/service-users/${SERVICE_USER}`, { token, body: {} })).toBe(403);
-    expect(await request('PATCH', `/service-users/${SERVICE_USER}/active`, { token, body: {} })).toBe(
+    expect(await request('POST', '/api/service-users', { token, body: {} })).toBe(403);
+    expect(await request('PUT', `/api/service-users/${SERVICE_USER}`, { token, body: {} })).toBe(403);
+    expect(
+      await request('PATCH', `/api/service-users/${SERVICE_USER}/active`, { token, body: {} }),
+    ).toBe(403);
+    expect(await request('POST', '/api/week-plans', { token, body: {} })).toBe(403);
+    expect(await request('PUT', `/api/week-plans/${PLAN}`, { token, body: {} })).toBe(403);
+    expect(await request('POST', `/api/week-plans/${PLAN}/duplicate`, { token, body: {} })).toBe(403);
+    expect(
+      await request('PATCH', `/api/week-plans/${PLAN}/day-entries/${ENTRY}/record`, {
+        token,
+        body: {},
+      }),
+    ).toBe(403);
+    expect(await request('POST', `/api/week-plans/${PLAN}/day-entries`, { token, body: {} })).toBe(
       403,
     );
-    expect(await request('POST', '/week-plans', { token, body: {} })).toBe(403);
-    expect(await request('PUT', `/week-plans/${PLAN}`, { token, body: {} })).toBe(403);
-    expect(await request('POST', `/week-plans/${PLAN}/duplicate`, { token, body: {} })).toBe(403);
-    expect(
-      await request('PATCH', `/week-plans/${PLAN}/day-entries/${ENTRY}/record`, { token, body: {} }),
-    ).toBe(403);
-    expect(await request('POST', `/week-plans/${PLAN}/day-entries`, { token, body: {} })).toBe(403);
-    expect(await request('PUT', '/compliance-settings', { token, body: {} })).toBe(403);
-    expect(await request('POST', '/assignments', { token, body: {} })).toBe(403);
+    expect(await request('PUT', '/api/compliance-settings', { token, body: {} })).toBe(403);
+    expect(await request('POST', '/api/assignments', { token, body: {} })).toBe(403);
   });
 });
 
 describe('STAFF cannot reach manager/auditor-only routes', () => {
   it('403s on summary, audit, user management, and management writes', async () => {
     const token = await tokenFor('STAFF');
-    expect(await request('GET', '/summary', { token })).toBe(403);
-    expect(await request('GET', '/audit-logs', { token })).toBe(403);
-    expect(await request('GET', '/users', { token })).toBe(403);
-    expect(await request('POST', '/service-users', { token, body: {} })).toBe(403);
-    expect(await request('PUT', '/compliance-settings', { token, body: {} })).toBe(403);
+    expect(await request('GET', '/api/summary', { token })).toBe(403);
+    expect(await request('GET', '/api/audit-logs', { token })).toBe(403);
+    expect(await request('GET', '/api/users', { token })).toBe(403);
+    expect(await request('POST', '/api/service-users', { token, body: {} })).toBe(403);
+    expect(await request('PUT', '/api/compliance-settings', { token, body: {} })).toBe(403);
   });
 });
 
 describe('unauthenticated requests are rejected', () => {
   it('401s a protected route with no token', async () => {
-    expect(await request('GET', '/service-users')).toBe(401);
-    expect(await request('GET', '/summary')).toBe(401);
-    expect(await request('GET', '/audit-logs')).toBe(401);
+    expect(await request('GET', '/api/service-users')).toBe(401);
+    expect(await request('GET', '/api/summary')).toBe(401);
+    expect(await request('GET', '/api/audit-logs')).toBe(401);
   });
 });

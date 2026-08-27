@@ -1,0 +1,25 @@
+# Render Blueprint — one Web Service serving the API + built SPA.
+# Create the database on Neon (free serverless Postgres) and paste its pooled
+# connection string into DATABASE_URL below (or set it in the Render dashboard).
+services:
+  - type: web
+    name: care-tracker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    # Applies pending migrations before each deploy goes live. Run `bun run db:seed`
+    # once from the Render shell after the first successful deploy to create accounts.
+    preDeployCommand: bun run db:migrate
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      # Optional overrides (defaults live in apps/server/src/config.ts):
+      # - key: ACCESS_TOKEN_TTL
+      #   value: 15m
+      # - key: REFRESH_TOKEN_TTL_DAYS
+      #   value: "30"

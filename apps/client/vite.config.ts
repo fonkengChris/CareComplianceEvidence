@@ -12,11 +12,11 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // Forward API calls to the backend during development, avoiding CORS.
+      // Forward API calls to the backend during development, avoiding CORS. The path is
+      // passed through unchanged: the server mounts the API under `/api`, matching prod.
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },

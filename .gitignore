@@ -6,3 +6,5 @@ dist/
 
 # Generated demo report artifacts (bun run db:mock)
 apps/server/reports/
+
+Weekly_Activity_System_Dashboard_v3.xlsx
