@@ -16,6 +16,7 @@ import UserFormPage from './pages/UserFormPage';
 import UsersPage from './pages/UsersPage';
 import WeekPlanDetailPage from './pages/WeekPlanDetailPage';
 import WeekPlanFormPage from './pages/WeekPlanFormPage';
+import WeekPlanTemplatePage from './pages/WeekPlanTemplatePage';
 
 /**
  * Route map. `/login` is public; everything else sits behind ProtectedRoute (auth)
@@ -58,6 +59,11 @@ export default function App() {
             <Route
               path="/service-users/:serviceUserId/week-plans/new"
               element={<WeekPlanFormPage />}
+            />
+            {/* Reusable per-service-user template new weeks are generated from. */}
+            <Route
+              path="/service-users/:serviceUserId/template"
+              element={<WeekPlanTemplatePage />}
             />
             <Route path="/week-plans/:id/edit" element={<WeekPlanFormPage />} />
           </Route>

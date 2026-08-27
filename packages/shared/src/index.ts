@@ -7,6 +7,7 @@ export * from './enums';
 export * from './health';
 export * from './service-user';
 export * from './week-plan';
+export * from './week-plan-template';
 export * from './day-entry';
 export * from './activity-type';
 export * from './user';

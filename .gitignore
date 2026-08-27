@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 .DS_Store
+
+# Generated demo report artifacts (bun run db:mock)
+apps/server/reports/

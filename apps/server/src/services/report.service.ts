@@ -1,4 +1,4 @@
-import type { Outcome, ReportData, ServiceUser } from '@care/shared';
+import type { Outcome, ReportData, ServiceUser, Weekday } from '@care/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { activityTypes, dayEntries, serviceUsers, weekPlans } from '../db/schema';
@@ -16,6 +16,7 @@ import { buildWeeklySummaryRow } from './summary.service';
 
 /** The only day-entry fields the report reads — matches the summary builder, keeps tests light. */
 type ReportEntry = {
+  day: Weekday;
   activityTypeId: string | null;
   timeSpent: number | null;
   outcome: Outcome | null;
@@ -36,7 +37,13 @@ export function buildWeekPlanReport(
   settings: ReportData['settings'],
   generatedAt: string,
 ): ReportData {
-  const row = buildWeeklySummaryRow(serviceUser, { id: plan.id }, entries, activityNameById, settings);
+  const row = buildWeeklySummaryRow(
+    serviceUser,
+    { id: plan.id, notes: plan.notes },
+    entries,
+    activityNameById,
+    settings,
+  );
   if (!row.compliance) {
     // Unreachable: buildWeeklySummaryRow only nulls compliance when the plan is null.
     throw new Error('Expected compliance for a plan-backed report');

@@ -1,5 +1,9 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { WEEKDAYS } from '@care/shared';
 import { eq, inArray } from 'drizzle-orm';
+import { getWeekPlanReport } from '../services/report.service';
+import { getWeeklySummary } from '../services/summary.service';
 import { client, db } from './index';
 import {
   activityTypes,
@@ -16,12 +20,19 @@ import {
  * *recorded* weeks that land across all four compliance bands (🟢 on-track, 🟡
  * under-target, 🔴 attention, and over-hours), plus a few review-hint comments.
  *
+ * It also generates the *subsequent weekly reports* those records produce: after the
+ * records are committed it runs them back through the real, backend-owned builders
+ * (`getWeekPlanReport` per plan, `getWeeklySummary` per week — the exact code the API
+ * serves) and writes the results to `apps/server/reports/` as JSON artifacts, plus a
+ * console recap. Reports are derived, never stored, so this proves the full cycle:
+ * plan → record → calculate → report (CLAUDE.md: calculations are backend-owned).
+ *
  * Re-runnable: it owns a fixed set of mock service users (by name) and tears those
  * down first — dropping their week plans (day entries cascade) and staff assignments —
  * so re-running never piles up duplicates and never touches seed data.
  *
  * Prereq: run `bun run db:seed` first (needs the login users, activity types and the
- * compliance-settings singleton). Then `bun run src/db/mock.ts` from apps/server.
+ * compliance-settings singleton). Then `bun run db:mock` from apps/server.
  */
 
 // Mondays for the demo weeks (most recent last). Distinct per service user from the
@@ -110,6 +121,10 @@ function distribute(targetMinutes: number): Map<string, number> {
   return spent;
 }
 
+// Populated inside the transaction, then drained after commit to build the reports.
+// (Report/summary builders read via the committed connection, not the tx.)
+const createdPlans: { id: string; serviceUserName: string; weekCommencing: string }[] = [];
+
 await db.transaction(async (tx) => {
   const activities = await tx
     .select({ id: activityTypes.id, name: activityTypes.name })
@@ -170,6 +185,7 @@ await db.transaction(async (tx) => {
         })
         .returning({ id: weekPlans.id });
       planCount++;
+      createdPlans.push({ id: plan.id, serviceUserName: u.name, weekCommencing: WEEKS[w] });
 
       const target = Math.round(contractedMinutes * u.deliveryByWeek[w]);
       const spentByKey = distribute(target);
@@ -223,5 +239,53 @@ await db.transaction(async (tx) => {
   );
 });
 
+// --- Generate the subsequent weekly reports from the records just committed ---
+// Uses the same backend-owned builders the API serves, so the artifacts match the app
+// exactly. Two shapes are written to apps/server/reports/:
+//   • report-<serviceUser>-<week>.json   — the commissioner PDF payload per week plan
+//   • summary-<week>.json                — the manager weekly summary across service users
+const reportsDir = join(import.meta.dir, '..', '..', 'reports');
+await mkdir(reportsDir, { recursive: true });
+
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const hoursOf = (minutes: number) => (minutes / 60).toFixed(1);
+const STATUS_ICON: Record<string, string> = {
+  ON_TRACK: '🟢',
+  UNDER_TARGET: '🟡',
+  ATTENTION: '🔴',
+  OVER_HOURS: '🔴',
+};
+
+// Per-plan commissioner reports.
+let reportCount = 0;
+console.log('\nWeekly reports (per service user / week):');
+for (const p of createdPlans) {
+  const report = await getWeekPlanReport(p.id);
+  if (!report) continue; // unreachable — the plan was just created
+  const file = join(reportsDir, `report-${slug(p.serviceUserName)}-${p.weekCommencing}.json`);
+  await writeFile(file, `${JSON.stringify(report, null, 2)}\n`);
+  reportCount++;
+  const c = report.compliance;
+  console.log(
+    `  ${STATUS_ICON[c.status] ?? '⚪'} ${p.weekCommencing}  ${p.serviceUserName.padEnd(16)} ` +
+      `${hoursOf(c.deliveredMinutes)}h / ${hoursOf(c.contractedMinutes)}h (${c.deliveryPct}%) ` +
+      `${c.status}${report.reviewHintCount ? `  ⚑ ${report.reviewHintCount} to review` : ''}`,
+  );
+}
+
+// Per-week manager summaries (one row per active service user for that week).
+const weeks = [...new Set(createdPlans.map((p) => p.weekCommencing))].sort();
+for (const week of weeks) {
+  const summary = await getWeeklySummary(week);
+  await writeFile(
+    join(reportsDir, `summary-${week}.json`),
+    `${JSON.stringify(summary, null, 2)}\n`,
+  );
+}
+
+console.log(
+  `\nWrote ${reportCount} weekly report(s) and ${weeks.length} weekly summary(ies) to ${reportsDir}`,
+);
+
 await client.end();
-console.log('Mock data complete.');
+console.log('Mock data + reports complete.');

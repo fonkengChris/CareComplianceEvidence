@@ -14,6 +14,7 @@ import { Select } from '../components/ui/select';
 import { cn } from '@/lib/utils';
 import { fetchActivityTypes } from '../lib/activity-types';
 import { toErrorMessage } from '../lib/errors';
+import { saveWeekAsTemplate } from '../lib/week-plan-templates';
 import { duplicateWeekPlan, fetchWeekPlan, replaceDayEntries } from '../lib/week-plans';
 
 /**
@@ -107,8 +108,20 @@ export default function WeekPlanDetailPage() {
     },
   });
 
+  // Snapshot this week's planned lines into the service user's reusable template.
+  const saveTemplate = useMutation({
+    mutationFn: () => saveWeekAsTemplate(id!),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ['week-plan-templates', plan.data?.serviceUserId],
+      }),
+  });
+
   const addRow = (day: Weekday) =>
-    setRows((prev) => [...prev, { key: nextKey(), day, activityTypeId: '', description: '', timeAllocated: '' }]);
+    setRows((prev) => [
+      ...prev,
+      { key: nextKey(), day, activityTypeId: '', description: '', timeAllocated: '' },
+    ]);
   const removeRow = (key: string) => setRows((prev) => prev.filter((r) => r.key !== key));
   const updateRow = (key: string, patch: Partial<Row>) =>
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -165,9 +178,14 @@ export default function WeekPlanDetailPage() {
         </p>
       )}
 
-      {(save.isError || duplicate.isError) && (
+      {(save.isError || duplicate.isError || saveTemplate.isError) && (
         <p role="alert" className="text-sm font-medium text-destructive">
-          {toErrorMessage(save.error ?? duplicate.error)}
+          {toErrorMessage(save.error ?? duplicate.error ?? saveTemplate.error)}
+        </p>
+      )}
+      {saveTemplate.isSuccess && (
+        <p role="status" className="text-sm font-medium text-primary">
+          Saved this week as the template.
         </p>
       )}
 
@@ -259,14 +277,25 @@ export default function WeekPlanDetailPage() {
       {isManager && (
         <Card>
           <CardContent className="flex flex-col gap-4 py-6">
-            <Button
-              type="button"
-              onClick={() => save.mutate()}
-              disabled={save.isPending}
-              className="self-start"
-            >
-              {save.isPending ? 'Saving…' : 'Save plan'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => save.mutate()}
+                disabled={save.isPending}
+                className="self-start"
+              >
+                {save.isPending ? 'Saving…' : 'Save plan'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => saveTemplate.mutate()}
+                disabled={saveTemplate.isPending}
+                className="self-start"
+              >
+                {saveTemplate.isPending ? 'Saving…' : 'Save as template'}
+              </Button>
+            </div>
 
             <div className="flex flex-wrap items-end gap-2">
               <div className="flex flex-col gap-1.5">

@@ -126,6 +126,47 @@ export const dayEntries = pgTable(
   (t) => [unique('day_entries_plan_day_line').on(t.weekPlanId, t.day, t.lineNumber)],
 );
 
+export const weekPlanTemplates = pgTable(
+  'week_plan_templates',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // One reusable planner per service user: the canonical week a manager maintains once
+    // and generates each real week from. `cascade` — the template is derived config, not
+    // history, so it goes with the service user (which is soft-deleted in practice anyway).
+    serviceUserId: uuid('service_user_id')
+      .notNull()
+      .references(() => serviceUsers.id, { onDelete: 'cascade' }),
+    notes: text('notes'),
+    createdAt,
+    updatedAt,
+  },
+  // At most one template per service user — makes get-or-create idempotent.
+  (t) => [unique('week_plan_templates_service_user').on(t.serviceUserId)],
+);
+
+export const templateDayEntries = pgTable(
+  'template_day_entries',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => weekPlanTemplates.id, { onDelete: 'cascade' }),
+    day: weekdayEnum('day').notNull(),
+    // Ordering within a day — NOT a fixed count, mirroring day_entries.
+    lineNumber: integer('line_number').notNull(),
+    // Same plan-time shape as day_entries, minus the staff-recorded columns
+    // (timeSpent/outcome/comment): a template is planning-only.
+    activityTypeId: uuid('activity_type_id').references(() => activityTypes.id, {
+      onDelete: 'restrict',
+    }),
+    description: text('description'),
+    timeAllocated: integer('time_allocated'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [unique('template_day_entries_template_day_line').on(t.templateId, t.day, t.lineNumber)],
+);
+
 export const staffAssignments = pgTable(
   'staff_assignments',
   {
@@ -234,7 +275,27 @@ export const serviceUsersRelations = relations(serviceUsers, ({ one, many }) => 
     references: [homes.id],
   }),
   weekPlans: many(weekPlans),
+  weekPlanTemplate: one(weekPlanTemplates),
   staffAssignments: many(staffAssignments),
+}));
+
+export const weekPlanTemplatesRelations = relations(weekPlanTemplates, ({ one, many }) => ({
+  serviceUser: one(serviceUsers, {
+    fields: [weekPlanTemplates.serviceUserId],
+    references: [serviceUsers.id],
+  }),
+  dayEntries: many(templateDayEntries),
+}));
+
+export const templateDayEntriesRelations = relations(templateDayEntries, ({ one }) => ({
+  template: one(weekPlanTemplates, {
+    fields: [templateDayEntries.templateId],
+    references: [weekPlanTemplates.id],
+  }),
+  activityType: one(activityTypes, {
+    fields: [templateDayEntries.activityTypeId],
+    references: [activityTypes.id],
+  }),
 }));
 
 export const weekPlansRelations = relations(weekPlans, ({ one, many }) => ({

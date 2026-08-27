@@ -11,6 +11,7 @@ import { serviceUserRouter } from './routes/service-user.routes';
 import { staffAssignmentRouter } from './routes/staff-assignment.routes';
 import { summaryRouter } from './routes/summary.routes';
 import { userRouter } from './routes/user.routes';
+import { weekPlanTemplateRouter } from './routes/week-plan-template.routes';
 import { weekPlanRouter } from './routes/week-plan.routes';
 
 /** Builds and validates the health response body from a DB-connectivity flag. */
@@ -32,6 +33,7 @@ app.use('/users', userRouter);
 app.use('/service-users', serviceUserRouter);
 app.use('/homes', homeRouter);
 app.use('/week-plans', weekPlanRouter);
+app.use('/week-plan-templates', weekPlanTemplateRouter);
 app.use('/activity-types', activityTypeRouter);
 app.use('/assignments', staffAssignmentRouter);
 app.use('/compliance-settings', complianceRouter);

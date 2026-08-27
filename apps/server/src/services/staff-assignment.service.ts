@@ -15,7 +15,7 @@ import { toPublicServiceUser } from './service-user.service';
  */
 
 /** The ids of homes a staff member is assigned to. */
-async function homeIdsForStaff(staffId: string): Promise<string[]> {
+export async function homeIdsForStaff(staffId: string): Promise<string[]> {
   const rows = await db
     .select({ homeId: staffHomeAssignments.homeId })
     .from(staffHomeAssignments)

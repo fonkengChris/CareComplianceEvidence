@@ -18,20 +18,38 @@ export const activityBreakdownItemSchema = z.object({
 });
 
 /**
+ * Minutes delivered on each weekday of a service user's week (Mon–Sun), so the summary can
+ * show the per-day breakdown that mirrors the commissioner spreadsheet. Zero for days with no
+ * recorded time; the seven values sum to the row's compliance `deliveredMinutes`.
+ */
+export const dailyDeliveredMinutesSchema = z.object({
+  MON: z.number().int().min(0),
+  TUE: z.number().int().min(0),
+  WED: z.number().int().min(0),
+  THU: z.number().int().min(0),
+  FRI: z.number().int().min(0),
+  SAT: z.number().int().min(0),
+  SUN: z.number().int().min(0),
+});
+
+/**
  * One row of the manager weekly summary: an active service user and, for the selected
  * week, their plan status at a glance. `weekPlanId`/`compliance` are null when no plan
  * exists for that week (nothing to drill into yet). `missed`/`refused` count day-entry
  * outcomes; `reviewHint` counts lines whose comment tripped the keyword scan — a review
- * nudge, never a status (CLAUDE.md). `activityBreakdown` is per service user.
+ * nudge, never a status (CLAUDE.md). `activityBreakdown` and `dailyMinutes` are per service
+ * user; `notes` is the plan's weekly note (null when there is no plan, or none was written).
  */
 export const weeklySummaryRowSchema = z.object({
   serviceUser: serviceUserSchema,
   weekPlanId: z.string().uuid().nullable(),
+  notes: z.string().nullable(),
   compliance: weekComplianceSchema.nullable(),
   missedCount: z.number().int().min(0),
   refusedCount: z.number().int().min(0),
   reviewHintCount: z.number().int().min(0),
   activityBreakdown: z.array(activityBreakdownItemSchema),
+  dailyMinutes: dailyDeliveredMinutesSchema,
 });
 
 /**
@@ -46,5 +64,6 @@ export const weeklySummarySchema = z.object({
 });
 
 export type ActivityBreakdownItem = z.infer<typeof activityBreakdownItemSchema>;
+export type DailyDeliveredMinutes = z.infer<typeof dailyDeliveredMinutesSchema>;
 export type WeeklySummaryRow = z.infer<typeof weeklySummaryRowSchema>;
 export type WeeklySummary = z.infer<typeof weeklySummarySchema>;

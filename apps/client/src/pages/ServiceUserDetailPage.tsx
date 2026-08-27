@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CalendarDays, Plus } from 'lucide-react';
+import { ArrowLeft, CalendarDays, LayoutTemplate, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Badge } from '../components/ui/badge';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
 import { toErrorMessage } from '../lib/errors';
@@ -13,6 +14,7 @@ import { fetchHomes } from '../lib/homes';
 import { fetchServiceUser, setServiceUserActive } from '../lib/service-users';
 import { assignStaff, fetchStaffForServiceUser, unassignStaff } from '../lib/staff-assignments';
 import { fetchUsers } from '../lib/users';
+import { generateWeekFromTemplate } from '../lib/week-plan-templates';
 import { fetchWeekPlans } from '../lib/week-plans';
 
 /**
@@ -23,9 +25,11 @@ import { fetchWeekPlans } from '../lib/week-plans';
 export default function ServiceUserDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isManager = user?.role === 'MANAGER';
   const [staffToAdd, setStaffToAdd] = useState('');
+  const [generateWeek, setGenerateWeek] = useState('');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['service-users', id],
@@ -44,6 +48,15 @@ export default function ServiceUserDetailPage() {
     queryKey: ['week-plans', 'by-service-user', id],
     queryFn: () => fetchWeekPlans(id!),
     enabled: Boolean(id),
+  });
+
+  // Generate a new week plan from this service user's template, then open it to adjust.
+  const generate = useMutation({
+    mutationFn: () => generateWeekFromTemplate(id!, generateWeek),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['week-plans', 'by-service-user', id] });
+      navigate(`/week-plans/${created.id}`);
+    },
   });
 
   // Homes, to resolve the service user's homeId to a name (includes inactive homes).
@@ -116,7 +129,10 @@ export default function ServiceUserDetailPage() {
         </div>
         {isManager && (
           <div className="flex gap-2">
-            <Link to={`/service-users/${data.id}/edit`} className={buttonVariants({ variant: 'outline' })}>
+            <Link
+              to={`/service-users/${data.id}/edit`}
+              className={buttonVariants({ variant: 'outline' })}
+            >
               Edit
             </Link>
             <Button
@@ -160,16 +176,55 @@ export default function ServiceUserDetailPage() {
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle>Week plans</CardTitle>
           {isManager && (
-            <Link
-              to={`/service-users/${data.id}/week-plans/new`}
-              className={buttonVariants({ size: 'sm' })}
-            >
-              <Plus className="size-4" />
-              New week plan
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                to={`/service-users/${data.id}/template`}
+                className={buttonVariants({ size: 'sm', variant: 'outline' })}
+              >
+                <LayoutTemplate className="size-4" />
+                Edit template
+              </Link>
+              <Link
+                to={`/service-users/${data.id}/week-plans/new`}
+                className={buttonVariants({ size: 'sm', variant: 'outline' })}
+              >
+                <Plus className="size-4" />
+                New week plan
+              </Link>
+            </div>
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
+          {isManager && (
+            <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-4">
+              <p className="text-sm font-medium">Generate a week from the template</p>
+              {generate.isError && (
+                <p role="alert" className="text-sm font-medium text-destructive">
+                  {toErrorMessage(generate.error)}
+                </p>
+              )}
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="generate-week">Week commencing</Label>
+                  <Input
+                    id="generate-week"
+                    type="date"
+                    aria-label="Generate week commencing"
+                    value={generateWeek}
+                    onChange={(e) => setGenerateWeek(e.target.value)}
+                    className="w-44"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => generate.mutate()}
+                  disabled={!generateWeek || generate.isPending}
+                >
+                  {generate.isPending ? 'Generating…' : 'Generate week'}
+                </Button>
+              </div>
+            </div>
+          )}
           {weekPlans.isLoading && (
             <p role="status" className="text-muted-foreground">
               Loading…

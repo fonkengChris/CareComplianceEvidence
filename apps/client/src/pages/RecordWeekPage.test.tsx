@@ -119,6 +119,13 @@ function renderRecord() {
   );
 }
 
+// The view defaults to today's weekday; clicking "Previous" clamps at Monday, so six
+// clicks deterministically land on the Monday planned line regardless of the real date.
+async function goToMonday() {
+  const prev = await screen.findByLabelText('Previous day');
+  for (let i = 0; i < 6; i += 1) fireEvent.click(prev);
+}
+
 beforeEach(() => {
   setAccessToken(null);
 });
@@ -130,6 +137,7 @@ describe('RecordWeekPage', () => {
   it('shows the planned activity with read-only allocated time', async () => {
     mockApi('STAFF');
     renderRecord();
+    await goToMonday();
     expect(await screen.findByText('Shopping')).toBeDefined();
     expect(screen.getByText('Allocated: 60 min')).toBeDefined();
   });
@@ -143,6 +151,7 @@ describe('RecordWeekPage', () => {
   it('records time, outcome and comment via a PATCH', async () => {
     mockApi('STAFF');
     renderRecord();
+    await goToMonday();
     fireEvent.change(await screen.findByLabelText('Time spent for Shopping'), {
       target: { value: '45' },
     });
@@ -157,6 +166,7 @@ describe('RecordWeekPage', () => {
   it('surfaces the review hint without showing it as a status', async () => {
     mockApi('STAFF');
     renderRecord();
+    await goToMonday();
     expect(await screen.findByLabelText('Review hint')).toBeDefined();
     // The hint is a nudge, not the outcome — the outcome control stays "not recorded".
     expect((screen.getByLabelText('Outcome for Shopping') as HTMLSelectElement).value).toBe('');

@@ -1,8 +1,10 @@
 import {
   type ActivityBreakdownItem,
   type ComplianceSettings,
+  type DailyDeliveredMinutes,
   type Outcome,
   type ServiceUser,
+  type Weekday,
   type WeeklySummary,
   type WeeklySummaryRow,
   detectReviewHint,
@@ -26,6 +28,7 @@ type WeekPlanRow = typeof weekPlans.$inferSelect;
 
 /** The only day-entry fields the summary reads — keeps the pure builder easy to test. */
 type SummaryEntry = {
+  day: Weekday;
   activityTypeId: string | null;
   timeSpent: number | null;
   outcome: Outcome | null;
@@ -34,6 +37,11 @@ type SummaryEntry = {
 
 /** Label for lines that were planned but never had an activity assigned. */
 const UNASSIGNED = 'Unassigned';
+
+/** A fresh Mon–Sun tally, all zero — the starting point for a row's per-day delivered minutes. */
+function emptyDailyMinutes(): DailyDeliveredMinutes {
+  return { MON: 0, TUE: 0, WED: 0, THU: 0, FRI: 0, SAT: 0, SUN: 0 };
+}
 
 /**
  * The Monday (week-commencing date) of the week containing `now`, as `YYYY-MM-DD`. Used
@@ -56,7 +64,7 @@ export function currentWeekCommencing(now: Date = new Date()): string {
  */
 export function buildWeeklySummaryRow(
   serviceUser: ServiceUser,
-  plan: { id: string } | null,
+  plan: { id: string; notes: string | null } | null,
   entries: readonly SummaryEntry[],
   activityNameById: ReadonlyMap<string, string>,
   settings: ComplianceSettings,
@@ -65,11 +73,13 @@ export function buildWeeklySummaryRow(
     return {
       serviceUser,
       weekPlanId: null,
+      notes: null,
       compliance: null,
       missedCount: 0,
       refusedCount: 0,
       reviewHintCount: 0,
       activityBreakdown: [],
+      dailyMinutes: emptyDailyMinutes(),
     };
   }
 
@@ -78,12 +88,16 @@ export function buildWeeklySummaryRow(
   let reviewHintCount = 0;
   // Keyed by activityTypeId; null (unassigned) lines share the `UNASSIGNED` bucket.
   const breakdown = new Map<string, ActivityBreakdownItem>();
+  // Minutes delivered per weekday (Mon–Sun) — mirrors the spreadsheet's day columns.
+  const dailyMinutes = emptyDailyMinutes();
 
   for (const e of entries) {
     if (e.outcome === 'MISSED') missedCount += 1;
     if (e.outcome === 'REFUSED') refusedCount += 1;
     // Review nudge only — never a status (CLAUDE.md); `outcome` stays authoritative.
     if (detectReviewHint(e.comment)) reviewHintCount += 1;
+
+    dailyMinutes[e.day] += e.timeSpent ?? 0;
 
     const key = e.activityTypeId ?? UNASSIGNED;
     const delivered = e.timeSpent ?? 0;
@@ -106,6 +120,7 @@ export function buildWeeklySummaryRow(
   return {
     serviceUser,
     weekPlanId: plan.id,
+    notes: plan.notes,
     compliance: computeWeekCompliance(entries, serviceUser.contractedHours, settings),
     missedCount,
     refusedCount,
@@ -113,6 +128,7 @@ export function buildWeeklySummaryRow(
     activityBreakdown: [...breakdown.values()].sort((a, b) =>
       a.activityName.localeCompare(b.activityName),
     ),
+    dailyMinutes,
   };
 }
 

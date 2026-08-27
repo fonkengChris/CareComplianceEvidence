@@ -32,6 +32,9 @@ ServiceUser (id, name, address, contractedHours, active)
   └── WeekPlan (id, serviceUserId, weekCommencing, notes)
         └── DayEntry (id, weekPlanId, day, lineNumber, activity, description, timeAllocated, timeSpent, outcome)
 
+WeekPlanTemplate (id, serviceUserId [unique], notes)  — one reusable planner per service user
+  └── TemplateDayEntry (id, templateId, day, lineNumber, activity, description, timeAllocated)  — plan-time only (no timeSpent/outcome)
+
 ActivityType (id, name, active)  — standardised list, admin-maintained
 User (id, name, role, passwordHash)  — role: STAFF | MANAGER | AUDITOR
 RefreshToken (id, userId, tokenHash, expiresAt, revokedAt)  — server-side, revocable
@@ -42,6 +45,7 @@ AuditLog (who, what, from, to, timestamp)
 Rules to preserve when touching this model:
 - `DayEntry` lines are Mon–Sun per `WeekPlan`, with ~4 lines/day as a sensible **default** (from original acceptance criteria) — not a hard limit. Staff/managers can add or remove lines as a real week requires; never enforce a fixed row count in the schema or UI.
 - Activities are always selected from `ActivityType`, never free-typed — this is deliberate, for reporting consistency.
+- `WeekPlanTemplate` is the reusable weekly planner a manager maintains once per service user; new `WeekPlan`s are **generated** from it (`POST /week-plan-templates/:serviceUserId/generate`) and then modified freely — generation copies template lines into a fresh week's `DayEntry`s. A template is planning-only (never carries `timeSpent`/`outcome`/`comment`). "Save as template" snapshots a week's planned lines back onto the template. Manual empty-plan creation stays as a fallback.
 - `Outcome` (Completed / Partially completed / Refused / Missed / Cancelled / Other) is the **single authoritative** signal for whether support happened. Keyword detection on comments (missed/refused/declined/did not) is only a **prompt to review** — it nudges a manager to check the entry, never sets or overrides status. Surface it as a review hint (distinct, lower visual weight than `Outcome`), never as a status badge.
 
 ---

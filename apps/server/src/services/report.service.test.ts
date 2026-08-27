@@ -40,9 +40,9 @@ describe('buildWeekPlanReport', () => {
       serviceUser,
       { id: 'plan-1', weekCommencing: '2026-08-17', notes: 'Busy week.' },
       [
-        { activityTypeId: 'act-1', timeSpent: 60, outcome: 'COMPLETED', comment: null },
-        { activityTypeId: 'act-1', timeSpent: 30, outcome: 'MISSED', comment: 'client missed it' },
-        { activityTypeId: 'act-2', timeSpent: null, outcome: 'REFUSED', comment: 'refused today' },
+        { day: 'MON', activityTypeId: 'act-1', timeSpent: 60, outcome: 'COMPLETED', comment: null },
+        { day: 'MON', activityTypeId: 'act-1', timeSpent: 30, outcome: 'MISSED', comment: 'client missed it' },
+        { day: 'WED', activityTypeId: 'act-2', timeSpent: null, outcome: 'REFUSED', comment: 'refused today' },
       ],
       activityNames,
       settings,

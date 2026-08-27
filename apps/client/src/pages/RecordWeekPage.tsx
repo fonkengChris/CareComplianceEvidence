@@ -1,7 +1,7 @@
 import { type Outcome, type Weekday, OUTCOMES, WEEKDAYS } from '@care/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import WeekComplianceSummary from '../components/WeekComplianceSummary';
 import { Button } from '../components/ui/button';
@@ -91,6 +91,12 @@ export default function RecordWeekPage() {
   const setDraft = (entryId: string, patch: Partial<Draft>) =>
     setDrafts((prev) => ({ ...prev, [entryId]: { ...(prev[entryId] ?? emptyDraft), ...patch } }));
 
+  // One day is shown at a time, defaulting to today; Previous/Next step through Mon–Sun.
+  // JS getDay() is 0=Sun…6=Sat; WEEKDAYS is Mon-first, so shift into that ordering.
+  const todayIndex = (new Date().getDay() + 6) % 7;
+  const [dayIndex, setDayIndex] = useState(todayIndex);
+  const selectedDay = WEEKDAYS[dayIndex];
+
   const record = useMutation({
     mutationFn: (entryId: string) =>
       recordDayEntry(id!, entryId, toRecordBody(drafts[entryId] ?? emptyDraft)),
@@ -148,21 +154,49 @@ export default function RecordWeekPage() {
         </p>
       )}
 
-      <div className="flex flex-col gap-6">
-        {WEEKDAYS.map((day) => {
-          const dayEntries = plan.data.dayEntries.filter((e) => e.day === day);
-          if (dayEntries.length === 0) return null;
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setDayIndex((i) => Math.max(0, i - 1))}
+            disabled={dayIndex === 0}
+            aria-label="Previous day"
+          >
+            <ChevronLeft className="size-4" />
+            <span className="hidden sm:inline">Previous</span>
+          </Button>
+          <h2 className="text-base font-semibold tracking-tight">{DAY_LABELS[selectedDay]}</h2>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setDayIndex((i) => Math.min(WEEKDAYS.length - 1, i + 1))}
+            disabled={dayIndex === WEEKDAYS.length - 1}
+            aria-label="Next day"
+          >
+            <span className="hidden sm:inline">Next</span>
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+
+        {(() => {
+          const dayEntries = plan.data.dayEntries.filter((e) => e.day === selectedDay);
+          if (dayEntries.length === 0) {
+            return (
+              <p className="rounded-md border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+                No planned activities for {DAY_LABELS[selectedDay]}. Use “+ Record Activity” below to
+                add one.
+              </p>
+            );
+          }
           return (
-            <div key={day} className="flex flex-col gap-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                {DAY_LABELS[day]}
-              </h2>
+            <div className="flex flex-col gap-3">
               {dayEntries.map((entry) => {
                 const draft = drafts[entry.id] ?? emptyDraft;
                 return (
                   <Card
                     key={entry.id}
-                    aria-label={`${DAY_LABELS[day]} ${activityName(entry.activityTypeId)}`}
+                    aria-label={`${DAY_LABELS[selectedDay]} ${activityName(entry.activityTypeId)}`}
                   >
                     <CardContent className="flex flex-col gap-3 py-4">
                       <div className="flex items-baseline justify-between gap-2">
@@ -237,12 +271,19 @@ export default function RecordWeekPage() {
               })}
             </div>
           );
-        })}
+        })()}
       </div>
 
       <div className="flex flex-col gap-3 border-t border-border pt-4">
         {!showAdd && (
-          <Button type="button" onClick={() => setShowAdd(true)} className="self-start">
+          <Button
+            type="button"
+            onClick={() => {
+              setNewEntry((p) => ({ ...p, day: selectedDay }));
+              setShowAdd(true);
+            }}
+            className="self-start"
+          >
             + Record Activity
           </Button>
         )}

@@ -37,34 +37,40 @@ describe('buildWeeklySummaryRow', () => {
   it('returns a zeroed, planless row when there is no plan', () => {
     const row = buildWeeklySummaryRow(serviceUser, null, [], activityNames, settings);
     expect(row.weekPlanId).toBeNull();
+    expect(row.notes).toBeNull();
     expect(row.compliance).toBeNull();
     expect(row.missedCount).toBe(0);
     expect(row.refusedCount).toBe(0);
     expect(row.reviewHintCount).toBe(0);
     expect(row.activityBreakdown).toEqual([]);
+    expect(row.dailyMinutes).toEqual({ MON: 0, TUE: 0, WED: 0, THU: 0, FRI: 0, SAT: 0, SUN: 0 });
   });
 
-  it('aggregates compliance, outcome counts, review hints and per-activity breakdown', () => {
+  it('aggregates compliance, outcome counts, review hints, per-activity and per-day breakdown', () => {
     const row = buildWeeklySummaryRow(
       serviceUser,
-      { id: 'plan-1' },
+      { id: 'plan-1', notes: 'Busy week.' },
       [
-        { activityTypeId: 'act-1', timeSpent: 60, outcome: 'COMPLETED', comment: null },
-        { activityTypeId: 'act-1', timeSpent: 30, outcome: 'MISSED', comment: 'client missed it' },
-        { activityTypeId: 'act-2', timeSpent: null, outcome: 'REFUSED', comment: 'refused today' },
-        { activityTypeId: null, timeSpent: 15, outcome: 'COMPLETED', comment: 'went well' },
+        { day: 'MON', activityTypeId: 'act-1', timeSpent: 60, outcome: 'COMPLETED', comment: null },
+        { day: 'MON', activityTypeId: 'act-1', timeSpent: 30, outcome: 'MISSED', comment: 'client missed it' },
+        { day: 'WED', activityTypeId: 'act-2', timeSpent: null, outcome: 'REFUSED', comment: 'refused today' },
+        { day: 'FRI', activityTypeId: null, timeSpent: 15, outcome: 'COMPLETED', comment: 'went well' },
       ],
       activityNames,
       settings,
     );
 
     expect(row.weekPlanId).toBe('plan-1');
+    expect(row.notes).toBe('Busy week.');
     // delivered = 60 + 30 + 0 + 15; compliance is delegated to computeWeekCompliance.
     expect(row.compliance?.deliveredMinutes).toBe(105);
     expect(row.missedCount).toBe(1);
     expect(row.refusedCount).toBe(1);
     // Keyword scan of the comments: 'missed' and 'refused' trip it; 'went well'/null do not.
     expect(row.reviewHintCount).toBe(2);
+
+    // Per-day delivered minutes: Mon has 60+30, Wed's refused line has none, Fri has 15.
+    expect(row.dailyMinutes).toEqual({ MON: 90, TUE: 0, WED: 0, THU: 0, FRI: 15, SAT: 0, SUN: 0 });
 
     // Grouped by activity, sorted by name: Cleaning, Shopping, Unassigned.
     expect(row.activityBreakdown).toEqual([
@@ -77,8 +83,8 @@ describe('buildWeeklySummaryRow', () => {
   it('falls back to a placeholder name for an unknown activity id', () => {
     const row = buildWeeklySummaryRow(
       serviceUser,
-      { id: 'plan-1' },
-      [{ activityTypeId: 'gone', timeSpent: 20, outcome: 'COMPLETED', comment: null }],
+      { id: 'plan-1', notes: null },
+      [{ day: 'MON', activityTypeId: 'gone', timeSpent: 20, outcome: 'COMPLETED', comment: null }],
       activityNames,
       settings,
     );

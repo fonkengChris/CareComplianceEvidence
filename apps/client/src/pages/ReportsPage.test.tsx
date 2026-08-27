@@ -39,6 +39,7 @@ function makeSummary() {
           updatedAt: '2026-08-01T00:00:00.000Z',
         },
         weekPlanId: 'plan-1',
+        notes: 'Steady week.',
         compliance: {
           deliveredMinutes: 600,
           contractedMinutes: 600,
@@ -50,6 +51,7 @@ function makeSummary() {
         refusedCount: 0,
         reviewHintCount: 0,
         activityBreakdown: [],
+        dailyMinutes: { MON: 120, TUE: 0, WED: 90, THU: 0, FRI: 0, SAT: 0, SUN: 0 },
       },
       {
         serviceUser: {
@@ -62,11 +64,13 @@ function makeSummary() {
           updatedAt: '2026-08-01T00:00:00.000Z',
         },
         weekPlanId: null,
+        notes: null,
         compliance: null,
         missedCount: 0,
         refusedCount: 0,
         reviewHintCount: 0,
         activityBreakdown: [],
+        dailyMinutes: { MON: 0, TUE: 0, WED: 0, THU: 0, FRI: 0, SAT: 0, SUN: 0 },
       },
     ],
   };
@@ -126,6 +130,17 @@ describe('ReportsPage', () => {
     expect(await screen.findByText('Ada Lovelace')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Export PDF' })).toBeDefined();
     expect(screen.getByRole('link', { name: 'View plan' })).toBeDefined();
+  });
+
+  it('shows the per-day (Mon–Sun) delivered hours in the summary table', async () => {
+    renderPage();
+    await screen.findByText('Ada Lovelace');
+    expect(screen.getByRole('columnheader', { name: 'Mon' })).toBeDefined();
+    expect(screen.getByRole('columnheader', { name: 'Sun' })).toBeDefined();
+    // Monday 120 min → 2.0h, Wednesday 90 min → 1.5h; delivered total 600 min → 10.0h.
+    expect(screen.getByText('2.0h')).toBeDefined();
+    expect(screen.getByText('1.5h')).toBeDefined();
+    expect(screen.getAllByText('10.0h').length).toBeGreaterThan(0);
   });
 
   it('omits service users without a plan for the week', async () => {
