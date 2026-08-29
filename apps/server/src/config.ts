@@ -26,4 +26,9 @@ export const config = {
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL ?? '15m',
   // Longer-lived, server-side, revocable refresh token.
   refreshTokenTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 30),
+  // OpenAI API key powering the "polish activity record" feature. Optional: absent means
+  // the feature is disabled and the endpoint answers 503 rather than crashing at boot.
+  openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+  // Small, cheap model for the short rewrite task. Overridable, never inlined at the call site.
+  aiPolishModel: process.env.AI_POLISH_MODEL ?? 'gpt-4.1-nano',
 } as const;

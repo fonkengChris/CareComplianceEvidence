@@ -9,7 +9,7 @@ handled by the SPA.
 
 ## 1. Database — Neon
 
-1. Create a project at <https://neon.tech> (free tier).
+1. Create a project at  (free tier).
 2. Copy the **pooled** connection string (the host contains `-pooler`). Ensure it ends
    with `?sslmode=require`, e.g.
    `postgresql://user:pass@ep-xxxx-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require`.

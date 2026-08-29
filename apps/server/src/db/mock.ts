@@ -16,9 +16,11 @@ import {
 
 /**
  * Rich demo data for eyeballing the UI — NOT the seed. `seed.ts` stays minimal and
- * idempotent (one plan, no recordings); this script fills every screen with fully
- * *recorded* weeks that land across all four compliance bands (🟢 on-track, 🟡
- * under-target, 🔴 attention, and over-hours), plus a few review-hint comments.
+ * idempotent (one plan, no recordings); this script fills every screen with recorded
+ * weeks across the current August (up to today) that land across all four compliance
+ * bands (🟢 on-track, 🟡 under-target, 🔴 attention, and over-hours), plus a few
+ * review-hint comments. The current week is recorded only through today, so it shows as
+ * a week in progress with its later days still planned but unrecorded.
  *
  * It also generates the *subsequent weekly reports* those records produce: after the
  * records are committed it runs them back through the real, backend-owned builders
@@ -35,9 +37,48 @@ import {
  * compliance-settings singleton). Then `bun run db:mock` from apps/server.
  */
 
-// Mondays for the demo weeks (most recent last). Distinct per service user from the
-// seed's Alice/Brian, so the (serviceUserId, weekCommencing) unique index is happy.
-const WEEKS = ['2026-07-13', '2026-07-20', '2026-07-27', '2026-08-03'] as const;
+const DAY_MS = 86_400_000;
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Local calendar "today" pinned to UTC midnight, so weekCommencing stays a stable date. */
+function todayUtc(): Date {
+  const n = new Date();
+  return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
+}
+
+/** Monday (UTC midnight) of the week containing `d`. */
+function mondayOf(d: Date): Date {
+  const x = new Date(d.getTime());
+  const dow = x.getUTCDay(); // 0=Sun .. 6=Sat
+  x.setUTCDate(x.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+  return x;
+}
+
+/**
+ * Every week *commencing* in the current August, up to and including the current week.
+ * The current week is recorded only through today (`recordedDays`); its remaining days
+ * stay planned-but-unrecorded, exactly as the app shows a week in progress. Distinct per
+ * service user from the seed's Alice/Brian, so the (serviceUserId, weekCommencing) unique
+ * index is happy.
+ */
+function augustWeeks(): { commencing: string; recordedDays: number }[] {
+  const today = todayUtc();
+  const currentMonday = mondayOf(today);
+  const weeks: { commencing: string; recordedDays: number }[] = [];
+  let m = mondayOf(new Date(Date.UTC(today.getUTCFullYear(), 7, 1))); // week containing Aug 1
+  if (m.getUTCMonth() !== 7) m = new Date(m.getTime() + 7 * DAY_MS); // first Monday in August
+  while (m.getUTCMonth() === 7 && m.getTime() <= currentMonday.getTime()) {
+    const recordedDays =
+      m.getTime() === currentMonday.getTime()
+        ? Math.min(7, Math.floor((today.getTime() - m.getTime()) / DAY_MS) + 1)
+        : 7;
+    weeks.push({ commencing: iso(m), recordedDays });
+    m = new Date(m.getTime() + 7 * DAY_MS);
+  }
+  return weeks;
+}
+
+const WEEKS = augustWeeks();
 
 // One mock service user per row. `deliveryByWeek` is the fraction of contracted hours
 // actually delivered that week — this is what drives the compliance colour so the
@@ -87,12 +128,62 @@ const MOCK_USERS: {
 ];
 
 // Four planned lines per day (the sensible default). Activities are looked up by name
-// from the seeded activity_types, never free-typed.
+// from the seeded activity_types, never free-typed. Each line carries several event-style
+// descriptions (full sentences describing what the support actually involved, not just the
+// activity name); one is chosen per day/week so the grid reads like real recorded support.
 const DAY_TEMPLATE = [
-  { activity: 'Personal Care', allocated: 60 },
-  { activity: 'Shopping', allocated: 45 },
-  { activity: 'Social Inclusion', allocated: 90 },
-  { activity: 'Wellbeing', allocated: 30 },
+  {
+    activity: 'Personal Care',
+    allocated: 60,
+    descriptions: [
+      'Supported with a morning wash, dressing and oral hygiene.',
+      'Assisted with a shower and choosing clothes for the day.',
+      'Helped with grooming, shaving and a skincare routine.',
+      'Prompted and supported with medication and a fresh change of clothes.',
+      'Assisted with bathing and drying, encouraging independence where possible.',
+      'Supported with hair washing and tidying the bedroom afterwards.',
+      'Helped with an evening personal care routine and getting ready for bed.',
+    ],
+  },
+  {
+    activity: 'Shopping',
+    allocated: 45,
+    descriptions: [
+      'Accompanied to the local supermarket for the weekly food shop.',
+      'Supported to write a shopping list and pay independently at the till.',
+      'Went to the high street to buy toiletries and household essentials.',
+      'Visited the market together to choose fresh fruit and vegetables.',
+      'Collected a prescription from the pharmacy and picked up a few groceries.',
+      'Supported to budget for the week and buy a birthday gift for a relative.',
+      'Popped to the corner shop for milk, bread and a newspaper.',
+    ],
+  },
+  {
+    activity: 'Social Inclusion',
+    allocated: 90,
+    descriptions: [
+      'Attended the community coffee morning and chatted with neighbours.',
+      'Joined the weekly art and crafts group at the community hall.',
+      'Supported to visit a friend and enjoy lunch together.',
+      'Went to the local library group and took part in a book discussion.',
+      'Attended a day-centre activity session followed by a social lunch.',
+      'Took a walk in the park and stopped for a drink at the cafe.',
+      'Supported to attend a place of worship and the gathering afterwards.',
+    ],
+  },
+  {
+    activity: 'Wellbeing',
+    allocated: 30,
+    descriptions: [
+      'Guided breathing and relaxation exercises to ease anxiety.',
+      'Talked through the week over a cup of tea and set small goals.',
+      'Gentle stretching followed by a short mindfulness session.',
+      'Listened to favourite music and reminisced over old photographs.',
+      'Encouraged hydration and prepared a healthy afternoon snack together.',
+      'Checked in on mood and sleep, and planned the days ahead.',
+      'Supported with a calming evening wind-down routine.',
+    ],
+  },
 ];
 
 // A few review-hint comments so the "prompt to review" surfacing has something to show.
@@ -102,11 +193,11 @@ const REVIEW_HINTS = [
   { day: 'SAT', line: 4, comment: 'Session missed — staff sickness, no cover.', outcome: 'MISSED' as const },
 ];
 
-/** Distribute a target total (minutes) across the 28 lines of a week, weighted by
+/** Distribute a target total (minutes) across the given recorded days' lines, weighted by
  *  planned allocation so busier activities carry more of the delivered time. Returns a
  *  map keyed "DAY:line" → spent minutes. Rounding remainder lands on the last line. */
-function distribute(targetMinutes: number): Map<string, number> {
-  const slots = WEEKDAYS.flatMap((day) =>
+function distribute(targetMinutes: number, days: readonly string[]): Map<string, number> {
+  const slots = days.flatMap((day) =>
     DAY_TEMPLATE.map((l, i) => ({ key: `${day}:${i + 1}`, weight: l.allocated })),
   );
   const totalWeight = slots.reduce((s, x) => s + x.weight, 0);
@@ -176,29 +267,56 @@ await db.transaction(async (tx) => {
     const contractedMinutes = Math.round(u.contractedHours * 60);
 
     for (let w = 0; w < WEEKS.length; w++) {
+      const week = WEEKS[w];
+      const partial = week.recordedDays < 7;
+      const recordedWeekdays = WEEKDAYS.slice(0, week.recordedDays);
+
       const [plan] = await tx
         .insert(weekPlans)
         .values({
           serviceUserId,
-          weekCommencing: WEEKS[w],
-          notes: `Recorded week for ${u.name} (${WEEKS[w]}).`,
+          weekCommencing: week.commencing,
+          notes: partial
+            ? `Week in progress for ${u.name} (${week.commencing}) — recorded through day ${week.recordedDays} of 7.`
+            : `Recorded week for ${u.name} (${week.commencing}).`,
         })
         .returning({ id: weekPlans.id });
       planCount++;
-      createdPlans.push({ id: plan.id, serviceUserName: u.name, weekCommencing: WEEKS[w] });
+      createdPlans.push({ id: plan.id, serviceUserName: u.name, weekCommencing: week.commencing });
 
-      const target = Math.round(contractedMinutes * u.deliveryByWeek[w]);
-      const spentByKey = distribute(target);
+      const fraction = u.deliveryByWeek[Math.min(w, u.deliveryByWeek.length - 1)];
+      // Pro-rate the weekly target to the recorded portion so per-day intensity stays
+      // consistent week to week; a week in progress therefore reads as under-target so far,
+      // exactly as it should mid-week.
+      const target = Math.round((contractedMinutes * fraction * week.recordedDays) / 7);
+      const spentByKey = distribute(target, recordedWeekdays);
 
-      const entries = WEEKDAYS.flatMap((day) =>
+      const entries = WEEKDAYS.flatMap((day, dayIdx) =>
         DAY_TEMPLATE.map((line, i) => {
           const lineNumber = i + 1;
+          const base = {
+            weekPlanId: plan.id,
+            day,
+            lineNumber,
+            activityTypeId: activityIdByName.get(line.activity) ?? null,
+            // Rotate the event descriptions by day and week so the same line reads
+            // differently across the grid rather than repeating the activity name.
+            description: line.descriptions[(dayIdx + w) % line.descriptions.length],
+            timeAllocated: line.allocated,
+          };
+
+          // Days beyond the recorded portion are the not-yet-happened remainder of the
+          // current week: planned only, no timeSpent/outcome (staff records them later).
+          if (dayIdx >= week.recordedDays) {
+            return { ...base, comment: null, timeSpent: null, outcome: null };
+          }
+
           const key = `${day}:${lineNumber}`;
           const hint = REVIEW_HINTS.find((h) => h.day === day && h.line === lineNumber);
           let timeSpent = spentByKey.get(key) ?? 0;
           let outcome: (typeof REVIEW_HINTS)[number]['outcome'] | 'COMPLETED' | 'PARTIALLY_COMPLETED' =
             'COMPLETED';
-          let comment: string | undefined;
+          let comment: string | null = null;
 
           if (hint) {
             // Review-hint day: nothing delivered, non-completed outcome + comment.
@@ -209,17 +327,7 @@ await db.transaction(async (tx) => {
             outcome = 'PARTIALLY_COMPLETED';
           }
 
-          return {
-            weekPlanId: plan.id,
-            day,
-            lineNumber,
-            activityTypeId: activityIdByName.get(line.activity) ?? null,
-            description: line.activity,
-            comment,
-            timeAllocated: line.allocated,
-            timeSpent,
-            outcome,
-          };
+          return { ...base, comment, timeSpent, outcome };
         }),
       );
       await tx.insert(dayEntries).values(entries);

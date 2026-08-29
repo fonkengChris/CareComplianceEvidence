@@ -6,6 +6,7 @@ import express, { type Express } from 'express';
 import { config } from './config';
 import { checkDb } from './db';
 import { activityTypeRouter } from './routes/activity-type.routes';
+import { aiRouter } from './routes/ai.routes';
 import { auditRouter } from './routes/audit.routes';
 import { authRouter } from './routes/auth.routes';
 import { complianceRouter } from './routes/compliance.routes';
@@ -48,6 +49,7 @@ api.use('/assignments', staffAssignmentRouter);
 api.use('/compliance-settings', complianceRouter);
 api.use('/summary', summaryRouter);
 api.use('/audit-logs', auditRouter);
+api.use('/ai', aiRouter);
 app.use('/api', api);
 
 serveClient(app);

@@ -1,7 +1,7 @@
 import { type Outcome, type Weekday, OUTCOMES, WEEKDAYS } from '@care/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import WeekComplianceSummary from '../components/WeekComplianceSummary';
 import { Button } from '../components/ui/button';
@@ -11,6 +11,7 @@ import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { fetchActivityTypes } from '../lib/activity-types';
+import { polishComment } from '../lib/ai';
 import { toErrorMessage } from '../lib/errors';
 import { addDayEntry, fetchWeekPlan, recordDayEntry } from '../lib/week-plans';
 
@@ -103,6 +104,23 @@ export default function RecordWeekPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['week-plans', id] }),
   });
 
+  // AI "polish": rewrite the comment for one line into clearer, professional prose before
+  // saving. Server-owned model call; here we just swap the improved text back into the draft.
+  // `polishingId` tracks which card is in flight so only that card's button shows a spinner.
+  const [polishingId, setPolishingId] = useState<string | null>(null);
+  const polish = useMutation({
+    mutationFn: (vars: { entryId: string; activity: string }) => {
+      const draft = drafts[vars.entryId] ?? emptyDraft;
+      return polishComment({
+        comment: draft.comment,
+        activity: vars.activity || undefined,
+        outcome: draft.outcome === '' ? undefined : (draft.outcome as Outcome),
+      });
+    },
+    onSuccess: (comment, vars) => setDraft(vars.entryId, { comment }),
+    onSettled: () => setPolishingId(null),
+  });
+
   // Ad-hoc "record an unplanned activity" form.
   const blankNew = { day: 'MON' as Weekday, activityTypeId: '', timeSpent: '', comment: '', outcome: '' };
   const [showAdd, setShowAdd] = useState(false);
@@ -151,6 +169,12 @@ export default function RecordWeekPage() {
       {record.isError && (
         <p role="alert" className="text-sm font-medium text-destructive">
           {toErrorMessage(record.error)}
+        </p>
+      )}
+
+      {polish.isError && (
+        <p role="alert" className="text-sm font-medium text-destructive">
+          {toErrorMessage(polish.error)}
         </p>
       )}
 
@@ -257,14 +281,31 @@ export default function RecordWeekPage() {
                         </p>
                       )}
 
-                      <Button
-                        type="button"
-                        onClick={() => record.mutate(entry.id)}
-                        disabled={record.isPending}
-                        className="self-end"
-                      >
-                        {record.isPending ? 'Saving…' : 'Save'}
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setPolishingId(entry.id);
+                            polish.mutate({ entryId: entry.id, activity: activityName(entry.activityTypeId) });
+                          }}
+                          disabled={
+                            draft.comment.trim() === '' ||
+                            (polish.isPending && polishingId === entry.id)
+                          }
+                          aria-label={`Polish comment for ${activityName(entry.activityTypeId)}`}
+                        >
+                          <Sparkles className="size-4" />
+                          {polish.isPending && polishingId === entry.id ? 'Polishing…' : 'Polish'}
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => record.mutate(entry.id)}
+                          disabled={record.isPending}
+                        >
+                          {record.isPending ? 'Saving…' : 'Save'}
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 );

@@ -64,7 +64,9 @@ const activityTypes = [
 
 let patchCount = 0;
 let postCount = 0;
+let polishCount = 0;
 let lastPatchBody: unknown = null;
+let lastPolishBody: unknown = null;
 
 function makeUser(role: Role) {
   return {
@@ -81,7 +83,9 @@ function makeUser(role: Role) {
 function mockApi(role: Role) {
   patchCount = 0;
   postCount = 0;
+  polishCount = 0;
   lastPatchBody = null;
+  lastPolishBody = null;
   installApiMock(async (url, init) => {
     const method = init.method;
     const json = (body: unknown, status = 200) =>
@@ -98,6 +102,11 @@ function mockApi(role: Role) {
     if (url === `/api/week-plans/${PLAN}/day-entries` && method === 'POST') {
       postCount += 1;
       return json(planWithEntries, 201);
+    }
+    if (url === '/api/ai/polish' && method === 'POST') {
+      polishCount += 1;
+      lastPolishBody = init.body ? JSON.parse(String(init.body)) : null;
+      return json({ comment: 'The client declined to go out today.' });
     }
     return new Response(null, { status: 404 });
   });
@@ -170,6 +179,31 @@ describe('RecordWeekPage', () => {
     expect(await screen.findByLabelText('Review hint')).toBeDefined();
     // The hint is a nudge, not the outcome — the outcome control stays "not recorded".
     expect((screen.getByLabelText('Outcome for Shopping') as HTMLSelectElement).value).toBe('');
+  });
+
+  it('polishes the comment via the AI endpoint and swaps in the improved text', async () => {
+    mockApi('STAFF');
+    renderRecord();
+    await goToMonday();
+    const comment = (await screen.findByLabelText('Comment for Shopping')) as HTMLTextAreaElement;
+    expect(comment.value).toBe('Client declined to go out');
+    fireEvent.click(screen.getByRole('button', { name: 'Polish comment for Shopping' }));
+    await waitFor(() => expect(polishCount).toBe(1));
+    // The comment sent for polishing carries the activity name as read-only context.
+    expect(lastPolishBody).toEqual({ comment: 'Client declined to go out', activity: 'Shopping' });
+    await waitFor(() => expect(comment.value).toBe('The client declined to go out today.'));
+  });
+
+  it('disables Polish when the comment is empty', async () => {
+    mockApi('STAFF');
+    renderRecord();
+    await goToMonday();
+    const comment = await screen.findByLabelText('Comment for Shopping');
+    fireEvent.change(comment, { target: { value: '' } });
+    expect(
+      (screen.getByRole('button', { name: 'Polish comment for Shopping' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
   });
 
   it('adds an unplanned activity via a POST', async () => {
