@@ -99,6 +99,7 @@ function mockApi(role: Role = 'MANAGER') {
     }
     if (url.startsWith('/api/summary')) return json(makeSummary());
     if (url === '/api/compliance-settings') return json(settings);
+    if (url === '/api/recording-guidance') return json({ guidance: 'Capture the outcome.' });
     return new Response(null, { status: 404 });
   });
 }

@@ -239,6 +239,10 @@ export const complianceSettings = pgTable('compliance_settings', {
   greenMin: integer('green_min').notNull(),
   amberMin: integer('amber_min').notNull(),
   redOverPct: integer('red_over_pct').notNull(),
+  // Manager-authored guidance shown to staff above each comment field on the recording
+  // screen (how to record an activity, highlights to capture). App-wide, staff-readable,
+  // manager-editable — see recording-guidance.* . Nullable → treated as "no guidance".
+  recordingGuidance: text('recording_guidance'),
   // Enforces "at most one settings row" at the DB level.
   singleton: boolean('singleton').notNull().default(true).unique(),
   createdAt,

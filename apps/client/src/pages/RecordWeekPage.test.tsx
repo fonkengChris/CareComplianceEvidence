@@ -94,6 +94,7 @@ function mockApi(role: Role) {
     if (url === '/api/auth/refresh') return json({ accessToken: 't', user: makeUser(role) });
     if (url === `/api/week-plans/${PLAN}` && method === 'GET') return json(planWithEntries);
     if (url === '/api/activity-types') return json(activityTypes);
+    if (url === '/api/recording-guidance') return json({ guidance: 'Capture the outcome and mood.' });
     if (url === `/api/week-plans/${PLAN}/day-entries/${ENTRY}/record` && method === 'PATCH') {
       patchCount += 1;
       lastPatchBody = init.body ? JSON.parse(String(init.body)) : null;
@@ -170,6 +171,14 @@ describe('RecordWeekPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(patchCount).toBe(1));
     expect(lastPatchBody).toEqual({ timeSpent: 45, outcome: 'COMPLETED', comment: 'Client declined to go out' });
+  });
+
+  it('shows the manager-authored recording guidance above the comment field', async () => {
+    mockApi('STAFF');
+    renderRecord();
+    await goToMonday();
+    expect(await screen.findByLabelText('How to record')).toBeDefined();
+    expect(screen.getByText('Capture the outcome and mood.')).toBeDefined();
   });
 
   it('surfaces the review hint without showing it as a status', async () => {

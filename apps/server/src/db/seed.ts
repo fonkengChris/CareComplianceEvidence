@@ -59,7 +59,16 @@ const ACTIVITY_NAMES = [
 
 // Sensible default 🟢/🟡/🔴 boundaries (percent of contracted hours delivered).
 // Managers can adjust these in Phase 6; they are never hardcoded in calculations.
-const DEFAULT_COMPLIANCE = { greenMin: 90, amberMin: 75, redOverPct: 110 };
+// `recordingGuidance` is manager-editable prose shown to staff above each comment field.
+const DEFAULT_COMPLIANCE = {
+  greenMin: 90,
+  amberMin: 75,
+  redOverPct: 110,
+  recordingGuidance:
+    'Record what support was provided and how the person responded. Capture: what you did, ' +
+    'the person’s engagement and mood, any concerns, changes or incidents, and the outcome. ' +
+    'Be factual and objective — describe what you observed, not opinions.',
+};
 
 // A fixed Monday so re-runs are deterministic regardless of the day seeded.
 const SAMPLE_WEEK_COMMENCING = '2026-08-03';

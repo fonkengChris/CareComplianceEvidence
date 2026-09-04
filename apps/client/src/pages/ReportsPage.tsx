@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import ComplianceBadge from '../components/ComplianceBadge';
 import ComplianceThresholdsCard from '../components/ComplianceThresholdsCard';
 import ExportReportButton from '../components/ExportReportButton';
+import RecordingGuidanceCard from '../components/RecordingGuidanceCard';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { cn } from '@/lib/utils';
@@ -159,8 +160,9 @@ export default function ReportsPage() {
       )}
 
       {isManager && (
-        <div className="mt-2 border-t border-border pt-6">
+        <div className="mt-2 flex flex-col gap-6 border-t border-border pt-6">
           <ComplianceThresholdsCard />
+          <RecordingGuidanceCard />
         </div>
       )}
     </section>

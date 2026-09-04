@@ -15,6 +15,7 @@ export * from './home';
 export * from './home-assignment';
 export * from './auth';
 export * from './compliance';
+export * from './recording-guidance';
 export * from './audit';
 export * from './review-hint';
 export * from './staff-assignment';

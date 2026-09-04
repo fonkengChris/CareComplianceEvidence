@@ -29,6 +29,13 @@
       "when": 1786358319227,
       "tag": "0003_magenta_stingray",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788559337404,
+      "tag": "0004_quiet_skullbuster",
+      "breakpoints": true
     }
   ]
 }

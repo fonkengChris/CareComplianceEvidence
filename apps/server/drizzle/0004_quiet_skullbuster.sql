@@ -1,0 +1,1 @@
+ALTER TABLE "compliance_settings" ADD COLUMN "recording_guidance" text;

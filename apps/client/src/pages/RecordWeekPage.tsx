@@ -14,6 +14,7 @@ import { Textarea } from '../components/ui/textarea';
 import { fetchActivityTypes } from '../lib/activity-types';
 import { polishComment } from '../lib/ai';
 import { toErrorMessage } from '../lib/errors';
+import { fetchRecordingGuidance } from '../lib/recording-guidance';
 import { addDayEntry, fetchWeekPlan, recordDayEntry } from '../lib/week-plans';
 
 /**
@@ -49,6 +50,22 @@ type Draft = { timeSpent: string; comment: string; outcome: string };
 
 const emptyDraft: Draft = { timeSpent: '', comment: '', outcome: '' };
 
+/**
+ * Manager-authored recording guidance shown just above a comment field: how to record the
+ * activity and which highlights to capture. Renders nothing when there is no guidance set.
+ */
+function CommentGuidance({ text }: { text: string }) {
+  if (!text.trim()) return null;
+  return (
+    <p
+      aria-label="How to record"
+      className="whitespace-pre-line rounded-md border border-border bg-muted/50 p-2 text-xs leading-relaxed text-muted-foreground"
+    >
+      {text}
+    </p>
+  );
+}
+
 /** Normalise a draft's form strings into the recording API shape. */
 function toRecordBody(draft: Draft) {
   return {
@@ -68,6 +85,9 @@ export default function RecordWeekPage() {
     enabled: Boolean(id),
   });
   const activities = useQuery({ queryKey: ['activity-types'], queryFn: fetchActivityTypes });
+  // Manager-authored guidance shown above each comment field — how to record, what to
+  // capture. App-wide setting; staff read it here (edited by managers on the Reports page).
+  const guidance = useQuery({ queryKey: ['recording-guidance'], queryFn: fetchRecordingGuidance });
   const activityName = (activityTypeId: string | null) =>
     activityTypeId ? (activities.data?.find((a) => a.id === activityTypeId)?.name ?? '—') : '—';
 
@@ -274,6 +294,7 @@ export default function RecordWeekPage() {
                             label={`comment for ${activityName(entry.activityTypeId)}`}
                           />
                         </div>
+                        <CommentGuidance text={guidance.data ?? ''} />
                         <Textarea
                           rows={2}
                           aria-label={`Comment for ${activityName(entry.activityTypeId)}`}
@@ -429,6 +450,7 @@ export default function RecordWeekPage() {
                       label="new activity comment"
                     />
                   </div>
+                  <CommentGuidance text={guidance.data ?? ''} />
                   <Textarea
                     rows={2}
                     aria-label="New activity comment"

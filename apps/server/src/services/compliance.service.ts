@@ -108,3 +108,26 @@ export async function updateComplianceSettings(
     .returning();
   return { ok: true, value: toPublicComplianceSettings(row) };
 }
+
+/**
+ * Recording guidance lives on the same settings singleton but is exposed separately: any
+ * authenticated user may read it (staff see it while recording), while thresholds stay
+ * MANAGER/AUDITOR-only. A null column reads as an empty string ("no guidance shown").
+ */
+export async function getRecordingGuidance(): Promise<string> {
+  const [row] = await db
+    .select({ guidance: complianceSettings.recordingGuidance })
+    .from(complianceSettings)
+    .limit(1);
+  if (!row) throw new Error('Compliance settings row is missing — run db:seed');
+  return row.guidance ?? '';
+}
+
+/** Overwrite the app-wide recording guidance (MANAGER-only, enforced at the route). */
+export async function updateRecordingGuidance(guidance: string): Promise<string> {
+  const [row] = await db
+    .update(complianceSettings)
+    .set({ recordingGuidance: guidance, updatedAt: new Date() })
+    .returning();
+  return row.recordingGuidance ?? '';
+}
