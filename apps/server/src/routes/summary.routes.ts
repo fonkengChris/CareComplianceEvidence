@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import * as reportController from '../controllers/report.controller';
 import * as summaryController from '../controllers/summary.controller';
 import { requireAuth, requireRole } from '../middleware/auth';
 
@@ -11,3 +12,11 @@ import { requireAuth, requireRole } from '../middleware/auth';
 export const summaryRouter = Router();
 
 summaryRouter.get('/', requireAuth, requireRole('MANAGER', 'AUDITOR'), summaryController.getWeekly);
+// Whole-period reports overview across every active service user (weeks/months/up to a year),
+// each row a self-contained per-service-user report ready to render as a PDF.
+summaryRouter.get(
+  '/period',
+  requireAuth,
+  requireRole('MANAGER', 'AUDITOR'),
+  reportController.getPeriodSummary,
+);

@@ -43,7 +43,20 @@ export function computeWeekCompliance(
   settings: Thresholds,
 ): WeekCompliance {
   const deliveredMinutes = entries.reduce((sum, e) => sum + (e.timeSpent ?? 0), 0);
-  const contractedMinutes = Math.round(contractedHours * 60);
+  return computeCompliance(deliveredMinutes, Math.round(contractedHours * 60), settings);
+}
+
+/**
+ * Pure compliance from already-summed minutes — the shared core behind both the weekly figure
+ * and the multi-week period report. `remaining` is signed (negative = over-delivered) and the
+ * status uses the same configured bands, so a period of N weeks (contracted = weekly × N) is
+ * scored identically to one week. No threshold number is hardcoded here.
+ */
+export function computeCompliance(
+  deliveredMinutes: number,
+  contractedMinutes: number,
+  settings: Thresholds,
+): WeekCompliance {
   const remainingMinutes = contractedMinutes - deliveredMinutes;
   // No contracted time is a degenerate config — treat as 0% (avoids divide-by-zero).
   const deliveryPct =

@@ -109,6 +109,8 @@ describe('STAFF cannot reach manager/auditor-only routes', () => {
   it('403s on summary, audit, user management, and management writes', async () => {
     const token = await tokenFor('STAFF');
     expect(await request('GET', '/api/summary', { token })).toBe(403);
+    expect(await request('GET', '/api/summary/period', { token })).toBe(403);
+    expect(await request('GET', `/api/service-users/${SERVICE_USER}/report`, { token })).toBe(403);
     expect(await request('GET', '/api/audit-logs', { token })).toBe(403);
     expect(await request('GET', '/api/users', { token })).toBe(403);
     expect(await request('POST', '/api/service-users', { token, body: {} })).toBe(403);

@@ -1,4 +1,4 @@
-import type { Role } from '@care/shared';
+import type { PeriodReport, Role } from '@care/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -9,9 +9,9 @@ import { mockApi as installApiMock } from '../lib/test-utils';
 import ReportsPage from './ReportsPage';
 
 /**
- * Reports/export page tests. Reuses the mocked /api/summary to drive the week's rows: a planned
- * row surfaces an "Export PDF" action + "View plan" link, a planless row is filtered out, and the
- * week picker drives a new fetch.
+ * Reports/export page tests. The page drives /api/summary/period: each row is a self-contained
+ * per-service-user period report, rendered as a card with the period metrics, the always-visible
+ * staff notes, and an "Export PDF" action. Changing the period presets refetches with a new range.
  */
 
 const settings = {
@@ -23,58 +23,82 @@ const settings = {
   updatedAt: '2026-08-01T00:00:00.000Z',
 };
 
-function makeSummary() {
-  return {
-    weekCommencing: '2026-08-03',
-    settings,
-    rows: [
-      {
-        serviceUser: {
-          id: 'su-1',
-          name: 'Ada Lovelace',
-          address: null,
-          contractedHours: 10,
-          active: true,
-          createdAt: '2026-08-01T00:00:00.000Z',
-          updatedAt: '2026-08-01T00:00:00.000Z',
-        },
-        weekPlanId: 'plan-1',
-        notes: 'Steady week.',
-        compliance: {
-          deliveredMinutes: 600,
-          contractedMinutes: 600,
-          remainingMinutes: 0,
-          deliveryPct: 100,
-          status: 'ON_TRACK',
-        },
-        missedCount: 0,
-        refusedCount: 0,
-        reviewHintCount: 0,
-        activityBreakdown: [],
-        dailyMinutes: { MON: 120, TUE: 0, WED: 90, THU: 0, FRI: 0, SAT: 0, SUN: 0 },
+const adaReport: PeriodReport = {
+  serviceUser: {
+    id: 'su-1',
+    name: 'Ada Lovelace',
+    address: null,
+    contractedHours: 10,
+    homeId: null,
+    active: true,
+    createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  },
+  from: '2026-08-03',
+  to: '2026-08-31',
+  weekCount: 5,
+  compliance: {
+    deliveredMinutes: 2400,
+    contractedMinutes: 3000,
+    remainingMinutes: 600,
+    deliveryPct: 80,
+    status: 'UNDER_TARGET',
+  },
+  missedCount: 1,
+  refusedCount: 0,
+  reviewHintCount: 1,
+  weeks: [
+    {
+      weekPlanId: 'plan-1',
+      weekCommencing: '2026-08-03',
+      compliance: {
+        deliveredMinutes: 2400,
+        contractedMinutes: 3000,
+        remainingMinutes: 600,
+        deliveryPct: 80,
+        status: 'UNDER_TARGET',
       },
-      {
-        serviceUser: {
-          id: 'su-2',
-          name: 'Bob Stone',
-          address: null,
-          contractedHours: 8,
-          active: true,
-          createdAt: '2026-08-01T00:00:00.000Z',
-          updatedAt: '2026-08-01T00:00:00.000Z',
-        },
-        weekPlanId: null,
-        notes: null,
-        compliance: null,
-        missedCount: 0,
-        refusedCount: 0,
-        reviewHintCount: 0,
-        activityBreakdown: [],
-        dailyMinutes: { MON: 0, TUE: 0, WED: 0, THU: 0, FRI: 0, SAT: 0, SUN: 0 },
-      },
-    ],
-  };
-}
+      missedCount: 1,
+      refusedCount: 0,
+      reviewHintCount: 1,
+    },
+  ],
+  activityBreakdown: [],
+  staffNotes: [
+    {
+      weekCommencing: '2026-08-03',
+      day: 'MON',
+      activityName: 'Shopping',
+      description: null,
+      timeSpent: 60,
+      outcome: 'COMPLETED',
+      comment: 'Went to the local market together.',
+    },
+  ],
+  settings,
+  generatedAt: '2026-09-04T09:30:00.000Z',
+};
+
+// A second service user with no plan in the range — should still be listed, but plainly.
+const bobReport: PeriodReport = {
+  ...adaReport,
+  serviceUser: { ...adaReport.serviceUser, id: 'su-2', name: 'Bob Stone' },
+  compliance: {
+    deliveredMinutes: 0,
+    contractedMinutes: 3000,
+    remainingMinutes: 3000,
+    deliveryPct: 0,
+    status: 'ATTENTION',
+  },
+  missedCount: 0,
+  refusedCount: 0,
+  reviewHintCount: 0,
+  weeks: [],
+  activityBreakdown: [],
+  staffNotes: [],
+};
+
+let lastUrl = '';
 
 function mockApi(role: Role = 'MANAGER') {
   installApiMock(async (url) => {
@@ -97,7 +121,16 @@ function mockApi(role: Role = 'MANAGER') {
         },
       });
     }
-    if (url.startsWith('/api/summary')) return json(makeSummary());
+    if (url.startsWith('/api/summary/period')) {
+      lastUrl = url;
+      return json({
+        from: '2026-08-03',
+        to: '2026-08-31',
+        weekCount: 5,
+        settings,
+        rows: [adaReport, bobReport],
+      });
+    }
     if (url === '/api/compliance-settings') return json(settings);
     if (url === '/api/recording-guidance') return json({ guidance: 'Capture the outcome.' });
     return new Response(null, { status: 404 });
@@ -119,6 +152,7 @@ function renderPage() {
 
 beforeEach(() => {
   setAccessToken(null);
+  lastUrl = '';
   mockApi();
 });
 afterEach(() => {
@@ -126,36 +160,36 @@ afterEach(() => {
 });
 
 describe('ReportsPage', () => {
-  it('lists a planned service user with an export action and a plan link', async () => {
+  it('shows a service user card with period metrics and an export action', async () => {
     renderPage();
     expect(await screen.findByText('Ada Lovelace')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Export PDF' })).toBeDefined();
-    expect(screen.getByRole('link', { name: 'View plan' })).toBeDefined();
+    // Delivered 2400 min → 40.0h across the period.
+    expect(screen.getByText('40.0h')).toBeDefined();
   });
 
-  it('shows the per-day (Mon–Sun) delivered hours in the summary table', async () => {
+  it('lists every active user, with a plain no-activity line for those without plans in range', async () => {
     renderPage();
     await screen.findByText('Ada Lovelace');
-    expect(screen.getByRole('columnheader', { name: 'Mon' })).toBeDefined();
-    expect(screen.getByRole('columnheader', { name: 'Sun' })).toBeDefined();
-    // Monday 120 min → 2.0h, Wednesday 90 min → 1.5h; delivered total 600 min → 10.0h.
-    expect(screen.getByText('2.0h')).toBeDefined();
-    expect(screen.getByText('1.5h')).toBeDefined();
-    expect(screen.getAllByText('10.0h').length).toBeGreaterThan(0);
+    expect(screen.getByText('Bob Stone')).toBeDefined();
+    expect(screen.getByText('No plans recorded for this period.')).toBeDefined();
+    // Only the user with activity (Ada) offers an export; Bob's empty card does not.
+    expect(screen.getAllByRole('button', { name: 'Export PDF' })).toHaveLength(1);
   });
 
-  it('omits service users without a plan for the week', async () => {
+  it('shows the staff-recorded notes inline', async () => {
     renderPage();
     await screen.findByText('Ada Lovelace');
-    expect(screen.queryByText('Bob Stone')).toBeNull();
+    expect(screen.getByText('Went to the local market together.')).toBeDefined();
+    expect(screen.getByText(/Shopping/)).toBeDefined();
   });
 
-  it('moves to another week with the picker', async () => {
+  it('refetches with a new range when a period preset is chosen', async () => {
     renderPage();
-    const label = await screen.findByText(/^Week of /);
-    const initial = label.textContent;
-    fireEvent.click(screen.getByRole('button', { name: /Next/ }));
-    await waitFor(() => expect(screen.getByText(/^Week of /).textContent).not.toBe(initial));
+    await screen.findByText('Ada Lovelace');
+    fireEvent.click(screen.getByRole('button', { name: 'This year' }));
+    // A "This year" range starts on 1 January, not the current week's Monday.
+    await waitFor(() => expect(lastUrl).toContain('-01-01'));
   });
 
   it('shows the compliance thresholds editor to a manager', async () => {
