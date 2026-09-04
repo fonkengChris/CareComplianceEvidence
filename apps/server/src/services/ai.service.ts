@@ -1,6 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import type { PolishRecordInput } from '@care/shared';
-import { generateText } from 'ai';
+import { experimental_transcribe as transcribe, generateText } from 'ai';
 import { config } from '../config';
 
 /**
@@ -54,6 +54,25 @@ export async function polishActivityComment(input: PolishRecordInput): Promise<s
     system: SYSTEM_PROMPT,
     prompt,
     temperature: 0.3,
+  });
+
+  return text.trim();
+}
+
+/**
+ * Speech-to-text: transcribe a recorded audio note into plain text. The audio is captured in
+ * the browser and uploaded as raw bytes; here we hand it to OpenAI's transcription model
+ * (same key as polish). Like polish this is presentation only — the staff member reviews and
+ * edits the text before saving, and the authoritative fields are recorded separately.
+ */
+export async function transcribeActivityAudio(audio: Uint8Array): Promise<string> {
+  if (!isAiConfigured()) throw new AiNotConfiguredError();
+
+  const openai = createOpenAI({ apiKey: config.openaiApiKey });
+
+  const { text } = await transcribe({
+    model: openai.transcription(config.aiTranscribeModel),
+    audio,
   });
 
   return text.trim();

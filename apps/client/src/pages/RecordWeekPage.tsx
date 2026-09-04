@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import DictateButton from '../components/DictateButton';
 import WeekComplianceSummary from '../components/WeekComplianceSummary';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -265,7 +266,14 @@ export default function RecordWeekPage() {
                       </div>
 
                       <div className="flex flex-col gap-1.5">
-                        <Label>Comment</Label>
+                        <div className="flex items-center justify-between gap-2">
+                          <Label>Comment</Label>
+                          <DictateButton
+                            value={draft.comment}
+                            onChange={(comment) => setDraft(entry.id, { comment })}
+                            label={`comment for ${activityName(entry.activityTypeId)}`}
+                          />
+                        </div>
                         <Textarea
                           rows={2}
                           aria-label={`Comment for ${activityName(entry.activityTypeId)}`}
@@ -413,7 +421,14 @@ export default function RecordWeekPage() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <Label>Comment</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>Comment</Label>
+                    <DictateButton
+                      value={newEntry.comment}
+                      onChange={(comment) => setNewEntry((p) => ({ ...p, comment }))}
+                      label="new activity comment"
+                    />
+                  </div>
                   <Textarea
                     rows={2}
                     aria-label="New activity comment"

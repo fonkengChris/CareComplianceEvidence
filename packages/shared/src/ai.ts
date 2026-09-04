@@ -23,3 +23,14 @@ export const polishedRecordSchema = z.object({
 });
 
 export type PolishedRecord = z.infer<typeof polishedRecordSchema>;
+
+/**
+ * Speech-to-text of a recorded audio note. The request body is the raw audio bytes (sent as
+ * a binary upload, not JSON), so only the response shape is modelled here — the transcribed
+ * text the client drops into a comment field.
+ */
+export const transcribedRecordSchema = z.object({
+  text: z.string(),
+});
+
+export type TranscribedRecord = z.infer<typeof transcribedRecordSchema>;

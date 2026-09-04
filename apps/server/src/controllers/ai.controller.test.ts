@@ -12,6 +12,7 @@ const serviceMock = {
   AiNotConfiguredError,
   isAiConfigured: mock(() => true),
   polishActivityComment: mock((): Promise<string> => Promise.resolve('Polished note.')),
+  transcribeActivityAudio: mock((): Promise<string> => Promise.resolve('Transcribed note.')),
 };
 
 mock.module('../services/ai.service', () => serviceMock);
@@ -36,6 +37,7 @@ function mockRes() {
 
 afterEach(() => {
   serviceMock.polishActivityComment.mockReset();
+  serviceMock.transcribeActivityAudio.mockReset();
 });
 
 describe('polish', () => {
@@ -67,6 +69,46 @@ describe('polish', () => {
     const errorSpy = spyOn(console, 'error').mockImplementation(() => {});
     const res = mockRes();
     await controller.polish({ body: { comment: 'clnt declnd' } } as Request, res);
+    expect(res.statusCode).toBe(502);
+    errorSpy.mockRestore();
+  });
+});
+
+describe('transcribe', () => {
+  it('400s when no audio is supplied before calling the service', async () => {
+    const res = mockRes();
+    await controller.transcribe({ body: undefined } as Request, res);
+    expect(res.statusCode).toBe(400);
+    expect(serviceMock.transcribeActivityAudio).not.toHaveBeenCalled();
+  });
+
+  it('400s on an empty audio buffer', async () => {
+    const res = mockRes();
+    await controller.transcribe({ body: Buffer.alloc(0) } as Request, res);
+    expect(res.statusCode).toBe(400);
+    expect(serviceMock.transcribeActivityAudio).not.toHaveBeenCalled();
+  });
+
+  it('returns the transcribed text on success', async () => {
+    serviceMock.transcribeActivityAudio.mockResolvedValueOnce('Transcribed note.');
+    const res = mockRes();
+    await controller.transcribe({ body: Buffer.from([1, 2, 3]) } as Request, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ text: 'Transcribed note.' });
+  });
+
+  it('503s when the feature is not configured', async () => {
+    serviceMock.transcribeActivityAudio.mockRejectedValueOnce(new AiNotConfiguredError());
+    const res = mockRes();
+    await controller.transcribe({ body: Buffer.from([1, 2, 3]) } as Request, res);
+    expect(res.statusCode).toBe(503);
+  });
+
+  it('502s when the model call fails', async () => {
+    serviceMock.transcribeActivityAudio.mockRejectedValueOnce(new Error('network'));
+    const errorSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const res = mockRes();
+    await controller.transcribe({ body: Buffer.from([1, 2, 3]) } as Request, res);
     expect(res.statusCode).toBe(502);
     errorSpy.mockRestore();
   });

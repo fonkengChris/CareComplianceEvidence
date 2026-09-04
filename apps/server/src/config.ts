@@ -5,6 +5,40 @@
  * local setup frictionless.
  */
 
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+
+/**
+ * Load the monorepo-root `.env` when present. The server is usually launched from its own
+ * workspace directory (`bun --watch src/index.ts` under `apps/server`, via
+ * `bun run --filter '*' dev`), where Bun's automatic `.env` lookup misses the shared root
+ * file that holds `OPENAI_API_KEY`, `DATABASE_URL`, etc. We fill only keys that aren't
+ * already set, so real platform/shell env always wins (e.g. Render in production, where no
+ * file exists and this is a harmless no-op). Kept dependency-free (no dotenv).
+ */
+function loadRootEnv(): void {
+  const rootEnv = path.resolve(import.meta.dir, '../../../.env');
+  if (!existsSync(rootEnv)) return;
+  for (const line of readFileSync(rootEnv, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    if (key in process.env) continue; // never override an already-set value
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
+loadRootEnv();
+
 const isProd = process.env.NODE_ENV === 'production';
 
 const DEV_JWT_SECRET = 'dev-insecure-jwt-secret-change-me';
@@ -31,4 +65,8 @@ export const config = {
   openaiApiKey: process.env.OPENAI_API_KEY ?? '',
   // Small, cheap model for the short rewrite task. Overridable, never inlined at the call site.
   aiPolishModel: process.env.AI_POLISH_MODEL ?? 'gpt-4.1-nano',
+  // Speech-to-text model for dictated activity notes. Same OpenAI key as polish; overridable.
+  aiTranscribeModel: process.env.AI_TRANSCRIBE_MODEL ?? 'gpt-4o-mini-transcribe',
+  // Cap on uploaded audio size (bytes) to keep the transcription endpoint bounded.
+  aiTranscribeMaxBytes: Number(process.env.AI_TRANSCRIBE_MAX_BYTES ?? 25 * 1024 * 1024),
 } as const;
