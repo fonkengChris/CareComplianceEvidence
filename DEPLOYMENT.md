@@ -56,9 +56,12 @@ Visit the Render URL:
 
 - **Free-tier cold start:** the Render free instance sleeps after ~15 min idle; the first
   request after sleeping takes a few seconds to wake.
-- **Migrations:** `bun run db:migrate` runs on every deploy (idempotent — already-applied
-  migrations are skipped). Generate new ones locally with `bun run db:generate` and commit
-  the SQL under `apps/server/drizzle/`.
+- **Migrations:** applied automatically at container **startup** in production
+  (`apps/server/src/index.ts` calls `runMigrations()`), because Render's free plan silently
+  ignores `preDeployCommand`. Idempotent — already-applied migrations are skipped. Generate
+  new ones locally with `bun run db:generate` and commit the SQL under `apps/server/drizzle/`;
+  the next deploy applies them on boot. (On a paid plan you can switch back to the
+  `preDeployCommand: bun run db:migrate` step in `render.yaml`.)
 - **Neon SSL:** handled via `?sslmode=require` in the URL. If TLS ever fails to negotiate,
   force it in `apps/server/src/db/index.ts` by passing `{ ssl: 'require' }` to `postgres(url)`
   for non-localhost hosts.
