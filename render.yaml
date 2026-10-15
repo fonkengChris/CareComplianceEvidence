@@ -10,7 +10,7 @@ services:
     healthCheckPath: /health
     # NOTE: Render's free plan silently ignores `preDeployCommand`, so migrations are
     # applied at container startup instead (see apps/server/src/index.ts). Run
-    # `bun run db:seed` once from the Render shell after the first deploy to create accounts.
+    # `bun run db:create-admin` once from the Render shell after the first deploy to create the admin.
     # On a paid plan you can move migrations back to a pre-deploy step:
     #   preDeployCommand: bun run db:migrate
     envVars:

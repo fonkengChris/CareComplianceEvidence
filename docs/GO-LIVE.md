@@ -93,24 +93,22 @@ You can deploy via the committed `render.yaml` Blueprint or create the service m
 
 ---
 
-## 5. Create real login accounts (do NOT ship the seed passwords)
+## 5. Create the admin and real login accounts
 
-⚠️ **Important for a real company deployment.** The `bun run db:seed` command creates convenience accounts with **publicly-known passwords** (`manager@example.com` / `Password123!`, etc., and an admin `chris_admin@carecompliance.com` / `Password123#`). These are **test-only** and must never be usable in production.
+`bun run db:create-admin` is production-safe: it creates **one admin account**
+(`olivier.mandengue@rightcareservices.co.uk`, MANAGER role) with a **randomly generated
+password**, plus the activity list and compliance defaults. It creates no sample service
+users, homes, plans or staff accounts.
 
-You have two safe options:
-
-**Option A — seed, then immediately lock down (simplest):**
 1. Open the Render **Shell** for the service and run once:
    ```bash
-   bun run db:seed        # idempotent: creates activity list, compliance defaults, sample data + the test accounts
+   bun run db:create-admin
    ```
-2. Log in as the manager/admin, then in the admin **user management** UI: create your real staff/manager/auditor accounts with strong passwords, and **delete or deactivate every seeded test account** (`manager@example.com`, `staff@example.com`, `auditor@example.com`, `chris_admin@carecompliance.com`). Deactivating a user also revokes their refresh token, so their access ends immediately.
-3. Also remove the seeded **sample service users / week plans** so the app starts clean for real data.
-
-**Option B — seed reference data only, skip test accounts:**
-The seed also inserts the **activity list** and **compliance settings** which you *do* want. If you'd rather not create the test accounts at all, tell me and I'll add a `db:seed --no-users` flag (or a separate `db:seed:reference` script) so you get activities + compliance defaults without any known-password logins, then create your first admin via a one-off script.
-
-> Recommendation: **Option A** to get moving, and make deleting the test accounts the very next step — before you point the domain at it. If you'd prefer Option B for a cleaner audit story, say so and I'll wire up the flag.
+2. The admin password is **printed once** in the output. Copy it to a password manager
+   immediately: it is only stored hashed and is never shown again. Re-running the script
+   leaves an existing admin's password unchanged.
+3. Log in as the admin, then use the **user management** UI to create your real
+   staff/manager/auditor accounts with strong passwords.
 
 ---
 
@@ -182,7 +180,7 @@ Run through this on `https://rightcareservices.co.uk`:
 | Postgres | Neon (Frankfurt) | Pooled `DATABASE_URL`, `sslmode=require` |
 | API + SPA | Render Web Service (Docker, Frankfurt) | One origin, API under `/api/*` |
 | Migrations | Automatic at container startup | Idempotent; committed SQL in `apps/server/drizzle/` |
-| Seed / reference data | `bun run db:seed` via Render Shell, once | Then delete test accounts |
+| Admin + reference data | `bun run db:create-admin` via Render Shell, once | Copy the printed password |
 | TLS / domain | Render + IONOS DNS | Auto Let's Encrypt certs |
 | AI features | OpenAI (optional) | `OPENAI_API_KEY`; degrade to 503 if absent |
 ```

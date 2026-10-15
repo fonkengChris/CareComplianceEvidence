@@ -30,24 +30,24 @@ create it manually: **New → Web Service → Docker**, pointing at this repo. T
 
 `PORT` is injected by Render automatically — `apps/server/src/index.ts` already reads it.
 
-## 3. First-run seed
+## 3. Create the admin account
 
 After the first successful deploy, open the Render **Shell** for the service and run once:
 
 ```bash
-bun run db:seed
+bun run db:create-admin
 ```
 
-This is idempotent and creates the login accounts, activity list, compliance defaults,
-and sample data. Seeded accounts share the password `Password123!`
-(`manager@example.com`, `staff@example.com`, `auditor@example.com`) — **test-only
-credentials; change or remove them before any real use.**
+This is idempotent and creates the admin account (`olivier.mandengue@rightcareservices.co.uk`,
+MANAGER role), the activity list and compliance defaults — no sample data. The admin
+password is randomly generated and **printed once** on first run; copy it somewhere safe
+immediately. Re-running leaves an existing admin's password unchanged.
 
 ## 4. Verify
 
 Visit the Render URL:
 
-- `/` loads the app; log in as `manager@example.com`.
+- `/` loads the app; log in as `olivier.mandengue@rightcareservices.co.uk`.
 - Deep-link/refresh (e.g. `/service-users`) returns the app, not JSON.
 - `GET /health` returns `{"status":"ok","db":"up"}`.
 - Walk plan → record → report → PDF.

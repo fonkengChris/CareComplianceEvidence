@@ -8,7 +8,7 @@ import { computeWeekCompliance, thresholdsInOrder } from './compliance.service';
  * in), null timeSpent → 0, and the divide-by-zero guard for a zero-contract service user.
  */
 
-// Defaults mirror the seed (db/seed.ts): 🟢 ≥90%, 🟡 ≥75%, 🔴 >110%.
+// Defaults mirror the seed (db/create-admin.ts): 🟢 ≥90%, 🟡 ≥75%, 🔴 >110%.
 const settings = { greenMin: 90, amberMin: 75, redOverPct: 110 };
 
 /** Build entries whose timeSpent sums to `minutes` (one line). */

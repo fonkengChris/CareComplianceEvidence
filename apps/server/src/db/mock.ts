@@ -15,7 +15,7 @@ import {
 } from './schema';
 
 /**
- * Rich demo data for eyeballing the UI — NOT the seed. `seed.ts` stays minimal and
+ * Rich demo data for eyeballing the UI — NOT the seed. `create-admin.ts` stays minimal and
  * idempotent (one plan, no recordings); this script fills every screen with recorded
  * weeks across the current August (up to today) that land across all four compliance
  * bands (🟢 on-track, 🟡 under-target, 🔴 attention, and over-hours), plus a few
@@ -33,7 +33,7 @@ import {
  * down first — dropping their week plans (day entries cascade) and staff assignments —
  * so re-running never piles up duplicates and never touches seed data.
  *
- * Prereq: run `bun run db:seed` first (needs the login users, activity types and the
+ * Prereq: run `bun run db:create-admin` first (needs the login users, activity types and the
  * compliance-settings singleton). Then `bun run db:mock` from apps/server.
  */
 
@@ -221,7 +221,7 @@ await db.transaction(async (tx) => {
     .select({ id: activityTypes.id, name: activityTypes.name })
     .from(activityTypes);
   if (activities.length === 0) {
-    throw new Error('No activity types found — run `bun run db:seed` before mock.ts.');
+    throw new Error('No activity types found — run `bun run db:create-admin` first.');
   }
   const activityIdByName = new Map(activities.map((a) => [a.name, a.id]));
 

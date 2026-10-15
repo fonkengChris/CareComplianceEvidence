@@ -84,12 +84,12 @@ export function thresholdsInOrder({ greenMin, amberMin, redOverPct }: Thresholds
 }
 
 /**
- * The singleton settings row. Seeded on DB first-run (see db/seed.ts), so it is expected to
+ * The singleton settings row. Seeded on DB first-run (see db/create-admin.ts), so it is expected to
  * exist; a missing row means the app is misconfigured, which surfaces as a 500.
  */
 export async function getComplianceSettings(): Promise<ComplianceSettings> {
   const [row] = await db.select().from(complianceSettings).limit(1);
-  if (!row) throw new Error('Compliance settings row is missing — run db:seed');
+  if (!row) throw new Error('Compliance settings row is missing — run db:create-admin');
   return toPublicComplianceSettings(row);
 }
 
@@ -132,7 +132,7 @@ export async function getRecordingGuidance(): Promise<string> {
     .select({ guidance: complianceSettings.recordingGuidance })
     .from(complianceSettings)
     .limit(1);
-  if (!row) throw new Error('Compliance settings row is missing — run db:seed');
+  if (!row) throw new Error('Compliance settings row is missing — run db:create-admin');
   return row.guidance ?? '';
 }
 

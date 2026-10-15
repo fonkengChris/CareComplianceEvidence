@@ -112,10 +112,10 @@ bun run test:e2e      # Playwright full-stack e2e — needs a real env + Postgre
 bun run typecheck     # typecheck every workspace
 bun run db:generate   # generate a versioned SQL migration from schema.ts
 bun run db:migrate    # apply committed migrations (auditable; preferred over db:push)
-bun run db:seed       # seed activities, compliance settings + sample data (idempotent)
+bun run db:create-admin # create admin (random pw, printed once) + activities/compliance defaults (idempotent)
 ```
 
-Migration workflow is **generate → migrate → seed** (versioned SQL, not `db:push`) for an
+Migration workflow is **generate → migrate → create-admin** (versioned SQL, not `db:push`) for an
 auditable, reproducible schema history. `db:push` remains available for throwaway local
 prototyping only.
 

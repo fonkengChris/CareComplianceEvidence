@@ -13,7 +13,7 @@
     "format": "prettier --write .",
     "db:generate": "bun run --filter '@care/server' db:generate",
     "db:migrate": "bun run --filter '@care/server' db:migrate",
-    "db:seed": "bun run --filter '@care/server' db:seed",
+    "db:create-admin": "bun run --filter '@care/server' db:create-admin",
     "db:push": "bun run --filter '@care/server' db:push"
   },
   "devDependencies": {
