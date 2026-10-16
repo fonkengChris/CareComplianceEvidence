@@ -20,11 +20,15 @@ export const OUTCOMES = [
   'CANCELLED',
   'OTHER',
 ] as const;
+/** Lifecycle of an auditor's request to audit one service user's records. */
+export const ACCESS_REQUEST_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'REVOKED'] as const;
 
 export const roleSchema = z.enum(ROLES);
 export const weekdaySchema = z.enum(WEEKDAYS);
 export const outcomeSchema = z.enum(OUTCOMES);
+export const accessRequestStatusSchema = z.enum(ACCESS_REQUEST_STATUSES);
 
 export type Role = z.infer<typeof roleSchema>;
 export type Weekday = z.infer<typeof weekdaySchema>;
 export type Outcome = z.infer<typeof outcomeSchema>;
+export type AccessRequestStatus = z.infer<typeof accessRequestStatusSchema>;

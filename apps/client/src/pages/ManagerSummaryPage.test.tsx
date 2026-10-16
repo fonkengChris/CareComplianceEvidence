@@ -51,7 +51,12 @@ function makeSummary() {
         refusedCount: 0,
         reviewHintCount: 1,
         activityBreakdown: [
-          { activityTypeId: 'act-1', activityName: 'Shopping', entryCount: 2, deliveredMinutes: 600 },
+          {
+            activityTypeId: 'act-1',
+            activityName: 'Shopping',
+            entryCount: 2,
+            deliveredMinutes: 600,
+          },
         ],
       },
       {
@@ -146,23 +151,11 @@ describe('ManagerSummaryPage', () => {
     expect(screen.getByRole('link', { name: 'View plan' })).toBeDefined();
   });
 
-  it('hides the "Create plan" link from an auditor but still lets them view plans', async () => {
-    mockApi('AUDITOR');
-    renderPage();
-    expect(await screen.findByText(/No plan/)).toBeDefined();
-    expect(screen.queryByRole('link', { name: 'Create plan' })).toBeNull();
-    // Read-only drill-in remains: expanding a planned row still offers "View plan".
-    fireEvent.click(await screen.findByRole('button', { name: /Ada Lovelace/ }));
-    expect(await screen.findByRole('link', { name: 'View plan' })).toBeDefined();
-  });
-
   it('moves to another week with the picker', async () => {
     renderPage();
     const label = await screen.findByText(/^Week of /);
     const initial = label.textContent;
     fireEvent.click(screen.getByRole('button', { name: /Next/ }));
-    await waitFor(() =>
-      expect(screen.getByText(/^Week of /).textContent).not.toBe(initial),
-    );
+    await waitFor(() => expect(screen.getByText(/^Week of /).textContent).not.toBe(initial));
   });
 });

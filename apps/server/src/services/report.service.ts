@@ -332,15 +332,39 @@ export async function getServiceUserPeriodReport(
  * range still appears (empty `weeks`, so the UI shows "no activity" rather than a red 0% badge).
  * One batch of reads for all users — plans in range, their entries, activity types, settings —
  * then a fold per user, so there is no per-user round trip.
+ *
+ * `serviceUserIds`, when given, restricts the overview to those service users (an auditor's
+ * approved grants); an empty list yields no rows without touching the plan tables.
  */
-export async function getPeriodSummary(from: string, to: string): Promise<PeriodSummary> {
+export async function getPeriodSummary(
+  from: string,
+  to: string,
+  serviceUserIds?: readonly string[],
+): Promise<PeriodSummary> {
   const fromMonday = mondayOf(from);
   const toMonday = mondayOf(to);
   const weekCount = weekCountBetween(fromMonday, toMonday);
   const generatedAt = new Date().toISOString();
 
+  if (serviceUserIds !== undefined && serviceUserIds.length === 0) {
+    return {
+      from: fromMonday,
+      to: toMonday,
+      weekCount,
+      settings: await getComplianceSettings(),
+      rows: [],
+    };
+  }
+  const scope = serviceUserIds ? [...serviceUserIds] : undefined;
+
   const [activeRows, activityRows, settings] = await Promise.all([
-    db.select().from(serviceUsers).where(eq(serviceUsers.active, true)).orderBy(serviceUsers.name),
+    db
+      .select()
+      .from(serviceUsers)
+      .where(
+        and(eq(serviceUsers.active, true), scope ? inArray(serviceUsers.id, scope) : undefined),
+      )
+      .orderBy(serviceUsers.name),
     db.select().from(activityTypes),
     getComplianceSettings(),
   ]);
@@ -349,7 +373,13 @@ export async function getPeriodSummary(from: string, to: string): Promise<Period
   const planRows = await db
     .select()
     .from(weekPlans)
-    .where(and(gte(weekPlans.weekCommencing, fromMonday), lte(weekPlans.weekCommencing, toMonday)))
+    .where(
+      and(
+        gte(weekPlans.weekCommencing, fromMonday),
+        lte(weekPlans.weekCommencing, toMonday),
+        scope ? inArray(weekPlans.serviceUserId, scope) : undefined,
+      ),
+    )
     .orderBy(asc(weekPlans.weekCommencing));
 
   const planIds = planRows.map((p) => p.id);

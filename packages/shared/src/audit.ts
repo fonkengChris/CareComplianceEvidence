@@ -25,7 +25,7 @@ export type AuditLog = z.infer<typeof auditLogSchema>;
  * validate an `?entityType=` filter and the write layer tags rows from the same tuple —
  * neither side can drift into an unknown string.
  */
-export const AUDIT_ENTITY_TYPES = ['DAY_ENTRY', 'SERVICE_USER'] as const;
+export const AUDIT_ENTITY_TYPES = ['DAY_ENTRY', 'SERVICE_USER', 'AUDITOR_ACCESS'] as const;
 export const auditEntityTypeSchema = z.enum(AUDIT_ENTITY_TYPES);
 export type AuditEntityType = z.infer<typeof auditEntityTypeSchema>;
 

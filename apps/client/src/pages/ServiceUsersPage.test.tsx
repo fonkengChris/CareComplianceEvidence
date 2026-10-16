@@ -11,7 +11,7 @@ import ServiceUsersPage from './ServiceUsersPage';
 /**
  * Component tests for the service-user list: rows render from the API, switching the
  * active/inactive filter refetches with the right query string, and the "New" link is
- * manager-only (auditors browse read-only). fetch is mocked; the QueryClient disables
+ * manager-only. fetch is mocked; the QueryClient disables
  * retries so error/empty states settle synchronously.
  */
 
@@ -107,12 +107,5 @@ describe('ServiceUsersPage', () => {
     mockList('MANAGER');
     renderPage();
     expect(await screen.findByRole('link', { name: 'New service user' })).toBeDefined();
-  });
-
-  it('hides the "New service user" link from an auditor', async () => {
-    mockList('AUDITOR');
-    renderPage();
-    await screen.findByText('Ada Lovelace');
-    expect(screen.queryByRole('link', { name: 'New service user' })).toBeNull();
   });
 });

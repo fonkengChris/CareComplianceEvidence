@@ -40,6 +40,8 @@ User (id, name, role, passwordHash)  — role: STAFF | MANAGER | AUDITOR
 RefreshToken (id, userId, tokenHash, expiresAt, revokedAt)  — server-side, revocable
 ComplianceSettings (id, greenMin, amberMin, redOverPct, ...)  — configurable 🟢/🟡/🔴 boundaries
 AuditLog (who, what, from, to, timestamp)
+AuditorAccessRequest (id, auditorId, serviceUserId, status, reason, decidedById, decidedAt)
+  — status: PENDING | APPROVED | REJECTED | REVOKED; ≤1 open (pending/approved) row per pair
 ```
 
 Rules to preserve when touching this model:
@@ -56,7 +58,7 @@ Rules to preserve when touching this model:
 |---|---|---|
 | **STAFF** | View assigned plans, record time spent/comments/outcome | Change contracted hours, edit allocated time, manage service users, edit calculated totals |
 | **MANAGER** | Full CRUD on service users, week plans, activities; view summaries/reports | — |
-| **AUDITOR** | View records, summaries, reports, audit history | Any write, anywhere |
+| **AUDITOR** | Reports page only — for the service users a manager has **approved** them to audit (they request access per service user; manager approves/rejects/revokes) | Any write except raising/withdrawing their own access requests; any other read (dashboard, service users, homes, week plans, audit history, settings) |
 
 Every new API route must have explicit role middleware. Never rely on frontend hiding alone.
 

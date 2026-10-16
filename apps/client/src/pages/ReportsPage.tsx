@@ -2,6 +2,7 @@ import type { PeriodReport } from '@care/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import AuditorAccessCard from '../components/AuditorAccessCard';
 import ComplianceBadge from '../components/ComplianceBadge';
 import ComplianceThresholdsCard from '../components/ComplianceThresholdsCard';
 import ExportPeriodReportButton from '../components/ExportPeriodReportButton';
@@ -25,6 +26,8 @@ import { PERIOD_PRESETS, type PeriodPreset, presetLabel, presetRange } from '../
  * breakdown, and the full staff-recorded notes for the period, from which a manager downloads a
  * one-file commissioner PDF. Every figure is backend-owned (CLAUDE.md); the page only displays
  * what /api/summary/period returns. Managers additionally tune the 🟢/🟡/🔴 thresholds below.
+ * Auditors see only the service users a manager approved them to audit (server-scoped), plus a
+ * panel to request access to more.
  */
 
 /** Remaining hours as text, flagging an overspend the way the PDF does. */
@@ -37,6 +40,7 @@ function remainingLabel(remainingMinutes: number): string {
 export default function ReportsPage() {
   const { user } = useAuth();
   const isManager = user?.role === 'MANAGER';
+  const isAuditor = user?.role === 'AUDITOR';
 
   // Default to the current week; presets and the custom inputs move the range from there.
   const [preset, setPreset] = useState<PeriodPreset | null>('week');
@@ -137,7 +141,9 @@ export default function ReportsPage() {
       {data && rows.length === 0 && (
         <Card>
           <CardContent className="p-10 text-center text-muted-foreground">
-            No active service users to report on.
+            {isAuditor
+              ? 'No approved service users yet — request access below.'
+              : 'No active service users to report on.'}
           </CardContent>
         </Card>
       )}
@@ -145,6 +151,12 @@ export default function ReportsPage() {
       {rows.map((report) => (
         <ServiceUserReportCard key={report.serviceUser.id} report={report} />
       ))}
+
+      {isAuditor && (
+        <div className="mt-2 border-t border-border pt-6">
+          <AuditorAccessCard />
+        </div>
+      )}
 
       {isManager && (
         <div className="mt-2 flex flex-col gap-6 border-t border-border pt-6">

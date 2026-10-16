@@ -19,6 +19,7 @@ export * from './recording-guidance';
 export * from './audit';
 export * from './review-hint';
 export * from './staff-assignment';
+export * from './auditor-access';
 export * from './summary';
 export * from './report';
 export * from './ai';

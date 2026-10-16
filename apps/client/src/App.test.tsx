@@ -7,8 +7,9 @@ import { AuthProvider } from './auth/AuthContext';
 import { setAccessToken } from './lib/api';
 import { mockApi } from './lib/test-utils';
 
-// A MANAGER: managers/auditors land on the weekly summary dashboard (Phase 7). (STAFF
-// instead get their recording dashboard, covered by StaffDashboardPage/RecordWeekPage tests.)
+// A MANAGER: managers land on the weekly summary dashboard (Phase 7); auditors are sent to
+// Reports. (STAFF instead get their recording dashboard, covered by StaffDashboardPage/
+// RecordWeekPage tests.)
 const user = {
   id: '11111111-1111-4111-8111-111111111111',
   name: 'Morgan Manager',
@@ -77,5 +78,33 @@ describe('App routing', () => {
 
     renderApp();
     expect(await screen.findByRole('heading', { name: 'Weekly Summary' })).toBeDefined();
+  });
+
+  it('lands an auditor on Reports with Reports as the only nav item', async () => {
+    mockApi(async (url) => {
+      if (url === '/api/auth/refresh') {
+        return jsonResponse({ accessToken: 't', user: { ...user, role: 'AUDITOR' } });
+      }
+      if (url.startsWith('/api/summary/period')) {
+        return jsonResponse({
+          ...emptySummary,
+          from: '2026-08-03',
+          to: '2026-08-03',
+          weekCount: 1,
+        });
+      }
+      if (url === '/api/auditor-access/service-users' || url === '/api/auditor-access/me') {
+        return jsonResponse([]);
+      }
+      return new Response(null, { status: 404 });
+    });
+
+    renderApp();
+    expect(await screen.findByRole('heading', { name: 'Reports & compliance' })).toBeDefined();
+    const navLinks = screen.getAllByRole('link').map((a) => a.textContent?.trim());
+    expect(navLinks).toContain('Reports');
+    for (const hidden of ['Dashboard', 'Service Users', 'Homes', 'Audit', 'Users']) {
+      expect(navLinks).not.toContain(hidden);
+    }
   });
 });

@@ -1,7 +1,14 @@
 import { type AuditEntityType, type AuditLogView, auditLogViewSchema } from '@care/shared';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../db';
-import { auditLogs, dayEntries, serviceUsers, users, weekPlans } from '../db/schema';
+import {
+  auditLogs,
+  auditorAccessRequests,
+  dayEntries,
+  serviceUsers,
+  users,
+  weekPlans,
+} from '../db/schema';
 
 /**
  * Audit service (Phase 9) — the append-only trail of tracked field changes
@@ -74,7 +81,8 @@ type AuditRow = typeof auditLogs.$inferSelect;
 
 /**
  * Resolve a human-readable label per audited entity for a set of rows, in two batched
- * lookups: service users by name; day entries as "<service user> — <day>" via their plan.
+ * lookups: service users by name; day entries as "<service user> — <day>" via their plan;
+ * auditor access requests as "<auditor> → <service user>".
  * Returns a map keyed `"<entityType>:<entityId>"`; missing entities simply have no label.
  */
 async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string>> {
@@ -85,6 +93,9 @@ async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string
     .map((r) => r.entityId as string);
   const dayEntryIds = rows
     .filter((r) => r.entityType === 'DAY_ENTRY' && r.entityId)
+    .map((r) => r.entityId as string);
+  const accessIds = rows
+    .filter((r) => r.entityType === 'AUDITOR_ACCESS' && r.entityId)
     .map((r) => r.entityId as string);
 
   if (serviceUserIds.length > 0) {
@@ -103,6 +114,16 @@ async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string
       .innerJoin(serviceUsers, eq(serviceUsers.id, weekPlans.serviceUserId))
       .where(inArray(dayEntries.id, dayEntryIds));
     for (const e of found) labels.set(`DAY_ENTRY:${e.id}`, `${e.name} — ${e.day}`);
+  }
+
+  if (accessIds.length > 0) {
+    const found = await db
+      .select({ id: auditorAccessRequests.id, auditor: users.name, name: serviceUsers.name })
+      .from(auditorAccessRequests)
+      .innerJoin(users, eq(users.id, auditorAccessRequests.auditorId))
+      .innerJoin(serviceUsers, eq(serviceUsers.id, auditorAccessRequests.serviceUserId))
+      .where(inArray(auditorAccessRequests.id, accessIds));
+    for (const a of found) labels.set(`AUDITOR_ACCESS:${a.id}`, `${a.auditor} → ${a.name}`);
   }
 
   return labels;
@@ -147,11 +168,7 @@ async function actorNamesFor(rows: AuditRow[]): Promise<Map<string, string>> {
 
 /** The audit history feed: the most recent changes across the system, newest first. */
 export async function listRecentAudit(limit = 100): Promise<AuditLogView[]> {
-  const rows = await db
-    .select()
-    .from(auditLogs)
-    .orderBy(desc(auditLogs.createdAt))
-    .limit(limit);
+  const rows = await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(limit);
   return toViews(rows, await actorNamesFor(rows));
 }
 

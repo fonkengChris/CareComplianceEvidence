@@ -99,9 +99,32 @@ const bobReport: PeriodReport = {
 };
 
 let lastUrl = '';
+let lastRequestBody = '';
+
+// What the auditor can request: Ada is approved already, Bob and Cara are open to request.
+const requestable = [
+  { id: 'su-1', name: 'Ada Lovelace', homeName: null, status: 'APPROVED' },
+  { id: 'su-2', name: 'Bob Stone', homeName: 'Riverside House', status: null },
+  { id: 'su-3', name: 'Cara Jones', homeName: null, status: null },
+];
+const myRequests = [
+  {
+    id: 'req-1',
+    auditorId: 'me',
+    auditorName: 'Test User',
+    serviceUserId: 'su-1',
+    serviceUserName: 'Ada Lovelace',
+    status: 'APPROVED',
+    reason: null,
+    requestedAt: '2026-08-01T00:00:00.000Z',
+    decidedById: 'mgr',
+    decidedByName: 'Morgan Manager',
+    decidedAt: '2026-08-02T00:00:00.000Z',
+  },
+];
 
 function mockApi(role: Role = 'MANAGER') {
-  installApiMock(async (url) => {
+  installApiMock(async (url, init) => {
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), {
         status,
@@ -128,8 +151,15 @@ function mockApi(role: Role = 'MANAGER') {
         to: '2026-08-31',
         weekCount: 5,
         settings,
-        rows: [adaReport, bobReport],
+        // The server scopes an auditor to their approved service users; mirror that here.
+        rows: role === 'AUDITOR' ? [adaReport] : [adaReport, bobReport],
       });
+    }
+    if (url === '/api/auditor-access/service-users') return json(requestable);
+    if (url === '/api/auditor-access/me') return json(myRequests);
+    if (url === '/api/auditor-access' && init.method === 'POST') {
+      lastRequestBody = init.body ?? '';
+      return json({ created: 1 }, 201);
     }
     if (url === '/api/compliance-settings') return json(settings);
     if (url === '/api/recording-guidance') return json({ guidance: 'Capture the outcome.' });
@@ -153,6 +183,7 @@ function renderPage() {
 beforeEach(() => {
   setAccessToken(null);
   lastUrl = '';
+  lastRequestBody = '';
   mockApi();
 });
 afterEach(() => {
@@ -202,5 +233,32 @@ describe('ReportsPage', () => {
     renderPage();
     await screen.findByText('Ada Lovelace');
     expect(screen.queryByRole('form', { name: 'Compliance thresholds' })).toBeNull();
+  });
+
+  it("shows an auditor only their approved service users' reports and the access panel", async () => {
+    mockApi('AUDITOR');
+    renderPage();
+    await screen.findByText('Ada Lovelace');
+    expect(screen.getByRole('form', { name: 'Request audit access' })).toBeDefined();
+    // Ada is already approved, so only Bob and Cara are offered.
+    expect(await screen.findByRole('checkbox', { name: /Bob Stone/ })).toBeDefined();
+    expect(screen.getByRole('checkbox', { name: /Cara Jones/ })).toBeDefined();
+    expect(screen.queryByRole('checkbox', { name: /Ada Lovelace/ })).toBeNull();
+    expect(screen.getByText('Approved')).toBeDefined();
+  });
+
+  it('sends an auditor access request for the chosen service users', async () => {
+    mockApi('AUDITOR');
+    renderPage();
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Cara Jones/ }));
+    fireEvent.change(screen.getByLabelText('Reason (optional)'), {
+      target: { value: 'Quarterly audit' },
+    });
+    fireEvent.submit(screen.getByRole('form', { name: 'Request audit access' }));
+    await waitFor(() => expect(lastRequestBody).not.toBe(''));
+    expect(JSON.parse(lastRequestBody)).toEqual({
+      serviceUserIds: ['su-3'],
+      reason: 'Quarterly audit',
+    });
   });
 });

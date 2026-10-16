@@ -8,6 +8,7 @@ import { checkDb } from './db';
 import { activityTypeRouter } from './routes/activity-type.routes';
 import { aiRouter } from './routes/ai.routes';
 import { auditRouter } from './routes/audit.routes';
+import { auditorAccessRouter } from './routes/auditor-access.routes';
 import { authRouter } from './routes/auth.routes';
 import { complianceRouter } from './routes/compliance.routes';
 import { homeRouter } from './routes/home.routes';
@@ -51,6 +52,7 @@ api.use('/compliance-settings', complianceRouter);
 api.use('/recording-guidance', recordingGuidanceRouter);
 api.use('/summary', summaryRouter);
 api.use('/audit-logs', auditRouter);
+api.use('/auditor-access', auditorAccessRouter);
 api.use('/ai', aiRouter);
 app.use('/api', api);
 

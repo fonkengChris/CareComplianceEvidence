@@ -1,12 +1,21 @@
 import type { Request, Response } from 'express';
+import * as auditorAccessService from '../services/auditor-access.service';
 import * as reportService from '../services/report.service';
+import { serviceUserIdForPlan } from '../services/week-plan.service';
 
 /**
  * Report controller (Phase 8): HTTP glue only (CLAUDE.md layering). Returns the report DATA a
  * client renders into a PDF — for one week plan, for one service user over a longer period, or
  * the whole-period overview across service users. Role (MANAGER/AUDITOR) is enforced by route
- * middleware.
+ * middleware; an AUDITOR is further scoped here to the service users a manager approved them to
+ * audit — anything else reads as 404 (never reveal existence), and the overview lists only those.
  */
+
+/** Whether the caller may see a service user's reports: managers always, auditors if approved. */
+async function canSeeServiceUser(req: Request, serviceUserId: string): Promise<boolean> {
+  if (req.user!.role !== 'AUDITOR') return true;
+  return auditorAccessService.isAuditorApproved(req.user!.sub, serviceUserId);
+}
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -14,6 +23,13 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_WEEKS = 53;
 
 export async function getWeekPlanReport(req: Request, res: Response): Promise<void> {
+  if (req.user!.role === 'AUDITOR') {
+    const serviceUserId = await serviceUserIdForPlan(String(req.params.id));
+    if (serviceUserId === null || !(await canSeeServiceUser(req, serviceUserId))) {
+      res.status(404).json({ error: 'Week plan not found' });
+      return;
+    }
+  }
   const found = await reportService.getWeekPlanReport(String(req.params.id));
   if (!found) {
     res.status(404).json({ error: 'Week plan not found' });
@@ -57,6 +73,10 @@ function parseRange(req: Request, res: Response): { from: string; to: string } |
 export async function getServiceUserPeriodReport(req: Request, res: Response): Promise<void> {
   const range = parseRange(req, res);
   if (!range) return;
+  if (!(await canSeeServiceUser(req, String(req.params.id)))) {
+    res.status(404).json({ error: 'Service user not found' });
+    return;
+  }
   const found = await reportService.getServiceUserPeriodReport(
     String(req.params.id),
     range.from,
@@ -72,5 +92,9 @@ export async function getServiceUserPeriodReport(req: Request, res: Response): P
 export async function getPeriodSummary(req: Request, res: Response): Promise<void> {
   const range = parseRange(req, res);
   if (!range) return;
-  res.json(await reportService.getPeriodSummary(range.from, range.to));
+  const scope =
+    req.user!.role === 'AUDITOR'
+      ? await auditorAccessService.approvedServiceUserIds(req.user!.sub)
+      : undefined;
+  res.json(await reportService.getPeriodSummary(range.from, range.to, scope));
 }

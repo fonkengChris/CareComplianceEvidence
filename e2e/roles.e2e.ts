@@ -4,29 +4,28 @@ import { login } from './helpers';
 /**
  * Role gating (Phase 10). At the UI level the client guard redirects a user away from a
  * route their role may not see; the authoritative *API* 403s are covered by the server
- * integration test (apps/server/src/app.integration.test.ts). Here we confirm the two
- * read-only roles land where they should and are bounced from what they shouldn't.
+ * integration test (apps/server/src/app.integration.test.ts). Here we confirm the
+ * restricted roles land where they should and are bounced from what they shouldn't.
  */
 
-test('auditor: read-only access, bounced from manager-only routes', async ({ page }) => {
+test('auditor: Reports only, bounced from every other route', async ({ page }) => {
   await login(page, 'AUDITOR');
 
-  // Auditor nav: Reports, Audit and (read-only) Service Users are present…
+  // Auditors land on Reports, and it is their only nav item.
+  await expect(page).toHaveURL(/\/reports$/);
   await expect(page.getByRole('link', { name: 'Reports' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Audit' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Service Users' })).toBeVisible();
-  // …but manager-only sections are not.
-  await expect(page.getByRole('link', { name: 'Users' })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Compliance' })).toHaveCount(0);
+  for (const hidden of ['Dashboard', 'Service Users', 'Homes', 'Audit', 'Users']) {
+    await expect(page.getByRole('link', { name: hidden, exact: true })).toHaveCount(0);
+  }
 
-  // The service-user list renders read-only — no create action.
-  await page.getByRole('link', { name: 'Service Users' }).click();
-  await expect(page.getByRole('heading', { name: 'Service Users' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'New service user' })).toHaveCount(0);
+  // The access-request panel is how an auditor asks to audit a service user.
+  await expect(page.getByRole('form', { name: 'Request audit access' })).toBeVisible();
 
-  // A manager-only URL redirects back to the dashboard.
-  await page.goto('/users');
-  await expect(page).toHaveURL(/\/$/);
+  // Any other section bounces back to Reports.
+  for (const path of ['/service-users', '/audit', '/users']) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/reports$/);
+  }
 });
 
 test('staff: cannot see or reach manager/auditor sections', async ({ page }) => {

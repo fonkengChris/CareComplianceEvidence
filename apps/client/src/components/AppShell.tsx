@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  ShieldCheck,
   ScrollText,
   Users,
   X,
@@ -28,17 +29,16 @@ import { cn } from '@/lib/utils';
 type NavItem = { to: string; label: string; icon: LucideIcon };
 
 function navItems(role: string | undefined): NavItem[] {
+  // Auditors only have the Reports page (scoped to the service users they're approved for).
+  if (role === 'AUDITOR') return [{ to: '/reports', label: 'Reports', icon: FileText }];
   const items: NavItem[] = [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }];
-  if (role === 'MANAGER' || role === 'AUDITOR') {
+  if (role === 'MANAGER') {
     items.push({ to: '/service-users', label: 'Service Users', icon: Users });
     items.push({ to: '/homes', label: 'Homes', icon: Home });
-  }
-  if (role === 'MANAGER') {
     items.push({ to: '/users', label: 'Users', icon: ClipboardList });
-  }
-  if (role === 'MANAGER' || role === 'AUDITOR') {
     items.push({ to: '/reports', label: 'Reports', icon: FileText });
     items.push({ to: '/audit', label: 'Audit', icon: ScrollText });
+    items.push({ to: '/access-requests', label: 'Access requests', icon: ShieldCheck });
   }
   return items;
 }
@@ -138,7 +138,7 @@ function Sidebar({
     <aside
       className={cn(
         'fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0',
-        drawerOpen ? 'translate-x-0' : '-translate-x-full'
+        drawerOpen ? 'translate-x-0' : '-translate-x-full',
       )}
     >
       <div className="flex items-center justify-between gap-2 px-5 py-4">
@@ -174,7 +174,7 @@ function Sidebar({
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-sidebar-accent text-white'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-white'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-white',
               )
             }
           >

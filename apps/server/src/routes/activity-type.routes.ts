@@ -8,6 +8,7 @@ import { requireAuth, requireRole } from '../middleware/auth';
  */
 export const activityTypeRouter = Router();
 
-const canRead = requireRole('STAFF', 'MANAGER', 'AUDITOR');
+// AUDITOR is excluded: auditors only read their approved reports.
+const canRead = requireRole('STAFF', 'MANAGER');
 
 activityTypeRouter.get('/', requireAuth, canRead, activityTypeController.list);

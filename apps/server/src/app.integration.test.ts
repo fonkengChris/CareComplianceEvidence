@@ -14,9 +14,9 @@ import { client } from './db';
  * It deliberately asserts only the rejection paths (401/403). Those short-circuit in the
  * auth/role middleware before any controller or database call, so the test needs no DB
  * and — crucially — no service mocks: mocking a whole service module here would leak into
- * that service's own unit tests in the same `bun test` run. AUDITOR's *positive* read
- * access is covered by the requireRole unit test (middleware/auth.test.ts) and the client
- * page tests.
+ * that service's own unit tests in the same `bun test` run. AUDITOR's *positive* report
+ * access (scoped to approved service users) is covered by the report controller test and the
+ * client page tests.
  *
  * Requests use node:http rather than global fetch because the suite preloads happy-dom,
  * whose fetch enforces a same-origin policy that blocks a localhost request. The ephemeral
@@ -84,13 +84,17 @@ describe('AUDITOR is blocked (403) from every write route', () => {
   it('403s on service-user, week-plan, recording, compliance and assignment writes', async () => {
     const token = await tokenFor('AUDITOR');
     expect(await request('POST', '/api/service-users', { token, body: {} })).toBe(403);
-    expect(await request('PUT', `/api/service-users/${SERVICE_USER}`, { token, body: {} })).toBe(403);
+    expect(await request('PUT', `/api/service-users/${SERVICE_USER}`, { token, body: {} })).toBe(
+      403,
+    );
     expect(
       await request('PATCH', `/api/service-users/${SERVICE_USER}/active`, { token, body: {} }),
     ).toBe(403);
     expect(await request('POST', '/api/week-plans', { token, body: {} })).toBe(403);
     expect(await request('PUT', `/api/week-plans/${PLAN}`, { token, body: {} })).toBe(403);
-    expect(await request('POST', `/api/week-plans/${PLAN}/duplicate`, { token, body: {} })).toBe(403);
+    expect(await request('POST', `/api/week-plans/${PLAN}/duplicate`, { token, body: {} })).toBe(
+      403,
+    );
     expect(
       await request('PATCH', `/api/week-plans/${PLAN}/day-entries/${ENTRY}/record`, {
         token,
@@ -102,6 +106,47 @@ describe('AUDITOR is blocked (403) from every write route', () => {
     );
     expect(await request('PUT', '/api/compliance-settings', { token, body: {} })).toBe(403);
     expect(await request('POST', '/api/assignments', { token, body: {} })).toBe(403);
+  });
+});
+
+describe('AUDITOR is confined to reports (403 on every other read)', () => {
+  it('403s on the weekly summary, audit history, records, homes and settings', async () => {
+    const token = await tokenFor('AUDITOR');
+    expect(await request('GET', '/api/summary', { token })).toBe(403);
+    expect(await request('GET', '/api/audit-logs', { token })).toBe(403);
+    expect(await request('GET', '/api/service-users', { token })).toBe(403);
+    expect(await request('GET', `/api/service-users/${SERVICE_USER}`, { token })).toBe(403);
+    expect(await request('GET', '/api/homes', { token })).toBe(403);
+    expect(await request('GET', '/api/week-plans', { token })).toBe(403);
+    expect(await request('GET', `/api/week-plans/${PLAN}`, { token })).toBe(403);
+    expect(await request('GET', '/api/compliance-settings', { token })).toBe(403);
+    expect(await request('GET', '/api/activity-types', { token })).toBe(403);
+  });
+
+  it('403s on the manager side of access requests', async () => {
+    const token = await tokenFor('AUDITOR');
+    expect(await request('GET', '/api/auditor-access', { token })).toBe(403);
+    expect(await request('POST', `/api/auditor-access/${PLAN}/approve`, { token })).toBe(403);
+    expect(await request('POST', `/api/auditor-access/${PLAN}/reject`, { token })).toBe(403);
+    expect(await request('POST', `/api/auditor-access/${PLAN}/revoke`, { token })).toBe(403);
+  });
+});
+
+describe('only AUDITORs raise access requests', () => {
+  it('403s MANAGER and STAFF on the auditor side', async () => {
+    for (const role of ['MANAGER', 'STAFF'] as const) {
+      const token = await tokenFor(role);
+      expect(await request('GET', '/api/auditor-access/me', { token })).toBe(403);
+      expect(await request('GET', '/api/auditor-access/service-users', { token })).toBe(403);
+      expect(await request('POST', '/api/auditor-access', { token, body: {} })).toBe(403);
+      expect(await request('DELETE', `/api/auditor-access/${PLAN}`, { token })).toBe(403);
+    }
+  });
+
+  it('403s STAFF on the manager side', async () => {
+    const token = await tokenFor('STAFF');
+    expect(await request('GET', '/api/auditor-access', { token })).toBe(403);
+    expect(await request('POST', `/api/auditor-access/${PLAN}/approve`, { token })).toBe(403);
   });
 });
 

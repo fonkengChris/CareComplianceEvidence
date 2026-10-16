@@ -9,7 +9,8 @@ import { requireAuth, requireRole } from '../middleware/auth';
  */
 export const homeRouter = Router();
 
-const canRead = requireRole('STAFF', 'MANAGER', 'AUDITOR');
+// AUDITOR is excluded: auditors only read their approved reports.
+const canRead = requireRole('STAFF', 'MANAGER');
 const canManage = requireRole('MANAGER');
 
 homeRouter.get('/', requireAuth, canRead, homeController.list);

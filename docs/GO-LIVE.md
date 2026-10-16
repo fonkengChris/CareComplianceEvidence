@@ -4,7 +4,7 @@ Production deployment for company use.
 
 - **Database:** Neon (serverless Postgres)
 - **App (frontend + backend):** Render — one Docker Web Service serving the API (`/api/*`) and the built React SPA from the same origin
-- **Domain:** `rightcareservices.co.uk` (owned, DNS on IONOS) → Render, with automatic HTTPS
+- **Domain:** `www.1to1carerecords.rightcareservices.co.uk` (subdomain of `rightcareservices.co.uk`, DNS on IONOS) → Render, with automatic HTTPS. The company's main site and email on `rightcareservices.co.uk` are left untouched.
 
 Because the browser talks to a **single origin**, the `sameSite=lax` refresh-token cookie works with no CORS configuration and there is no client-side API URL to configure — the SPA calls `/api/*` relatively.
 
@@ -112,44 +112,43 @@ users, homes, plans or staff accounts.
 
 ---
 
-## 6. Custom domain — `rightcareservices.co.uk` via IONOS
+## 6. Custom domain — `www.1to1carerecords.rightcareservices.co.uk` via IONOS
 
-Render issues free, auto-renewing Let's Encrypt TLS certificates once DNS is verified.
+The app lives on its own subdomain, so the root `rightcareservices.co.uk` and `www.rightcareservices.co.uk` (company website, email/MX records) are **not changed**. Render issues free, auto-renewing Let's Encrypt TLS certificates once DNS is verified.
 
 ### 6a. Add the domains in Render
 Service → **Settings → Custom Domains → Add**:
-- `www.rightcareservices.co.uk`
-- `rightcareservices.co.uk` (apex/root)
+- `www.1to1carerecords.rightcareservices.co.uk` (primary — the address staff use)
+- `1to1carerecords.rightcareservices.co.uk` (Render usually adds this automatically when you add a `www.` domain; add it yourself if it doesn't appear)
 
-Render will show the exact DNS targets and mark each domain "unverified" until DNS propagates. Pick one as **primary** (recommended: `www`) — Render auto-redirects the other to it.
+Render will show the exact DNS target and mark each domain "unverified" until DNS propagates. Make the `www.` one **primary** — Render auto-redirects the bare `1to1carerecords` host to it.
 
 ### 6b. Configure DNS at IONOS
-Log in to IONOS → **Domains & SSL → rightcareservices.co.uk → DNS**. Add/edit these records (delete conflicting existing A/CNAME records for `@` and `www` first, e.g. any IONOS parking page):
+Log in to IONOS → **Domains & SSL → rightcareservices.co.uk → DNS**. Add these two records (IONOS appends `.rightcareservices.co.uk` to the host name for you). Do **not** edit or delete the existing `@`, `www` or `MX` records — those serve the company website and email.
 
 | Type | Host/Name | Value | Notes |
 |---|---|---|---|
-| **CNAME** | `www` | `care-tracker-xxxx.onrender.com` | Use the exact `.onrender.com` host Render shows you |
-| **A** | `@` (root) | `216.24.57.1` | Render's apex anycast IP — confirm the current value in Render's dashboard, it's shown next to the apex domain |
+| **CNAME** | `www.1to1carerecords` | `care-tracker-xxxx.onrender.com` | Use the exact `.onrender.com` host Render shows you |
+| **CNAME** | `1to1carerecords` | `care-tracker-xxxx.onrender.com` | Same target; Render redirects it to the `www.` primary |
 
-IONOS doesn't support `ALIAS`/`ANAME` on the root, so the apex uses Render's documented **A record IP**. Always use whatever IP/host Render displays for your service rather than assuming — Render occasionally updates them.
-
-If IONOS is only acting as registrar and you'd rather manage DNS elsewhere, you can point the nameservers at another provider, but editing the records above directly in IONOS is simpler.
+Because both are subdomains, plain CNAMEs work — no apex `A` record / Render IP is needed. If IONOS asks whether to create the subdomain first, accept (IONOS sometimes requires adding `1to1carerecords` under **Subdomains** before its DNS records are editable).
 
 ### 6c. Wait & verify
 - DNS propagation is usually minutes but can take up to a few hours. Check with:
   ```bash
-  dig +short www.rightcareservices.co.uk
-  dig +short rightcareservices.co.uk
+  dig +short www.1to1carerecords.rightcareservices.co.uk
+  dig +short 1to1carerecords.rightcareservices.co.uk
   ```
-- When Render shows both domains **Verified** with a green certificate, open `https://rightcareservices.co.uk` and `https://www.rightcareservices.co.uk` — both should load the app over HTTPS, and the non-primary should redirect to the primary.
+  Each should resolve to the `.onrender.com` host (then Render's IPs).
+- When Render shows both domains **Verified** with a green certificate, open `https://www.1to1carerecords.rightcareservices.co.uk` — the app should load over HTTPS — and `https://1to1carerecords.rightcareservices.co.uk`, which should redirect to the `www.` address.
 
-No app config change is needed for the domain: the SPA and API share the origin, and the refresh cookie is `secure` + `sameSite=lax`, which works correctly over HTTPS on the custom domain.
+No app config change is needed for the domain: the SPA and API share the origin, and the refresh cookie is `secure` + `sameSite=lax` with no `Domain` attribute, so it is scoped to the app's own host and works correctly over HTTPS on the custom domain.
 
 ---
 
 ## 7. Production verification checklist
 
-Run through this on `https://rightcareservices.co.uk`:
+Run through this on `https://www.1to1carerecords.rightcareservices.co.uk`:
 
 - [ ] `/health` returns `{"status":"ok","db":"up"}`
 - [ ] Log in as your **real** manager account (seeded test accounts deleted)

@@ -10,11 +10,13 @@ import { requireAuth, requireRole } from '../middleware/auth';
  */
 export const serviceUserRouter = Router();
 
-const canRead = requireRole('STAFF', 'MANAGER', 'AUDITOR');
+// AUDITOR is excluded: auditors only read their approved reports
+// (`/:id/report`, scoped in the report controller).
+const canRead = requireRole('STAFF', 'MANAGER');
 
 serviceUserRouter.get('/', requireAuth, canRead, serviceUserController.list);
-// Period report (weeks/months/up to a year) for one service user. MANAGER/AUDITOR only, matching
-// the weekly report/summary. Distinct `/:id/report` suffix so it never shadows `GET /:id`.
+// Period report (weeks/months/up to a year) for one service user. MANAGER/AUDITOR only; an auditor
+// only for service users they are approved to audit (404 otherwise). Distinct `/:id/report` suffix so it never shadows `GET /:id`.
 serviceUserRouter.get(
   '/:id/report',
   requireAuth,

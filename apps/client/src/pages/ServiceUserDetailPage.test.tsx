@@ -53,7 +53,10 @@ function mockApi(role: Role) {
   installApiMock(async (url, init) => {
     const method = init.method;
     const json = (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
 
     if (url === '/api/auth/refresh') return json({ accessToken: 't', user: makeUser(role) });
     if (url === `/api/service-users/${SU}`) return json(serviceUser);
@@ -110,15 +113,5 @@ describe('ServiceUserDetailPage assignments', () => {
     // After assigning, the list shows Sam with a Remove button (DELETE).
     fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(unassignCount).toBe(1));
-  });
-
-  it('hides all write controls from an auditor (read-only view)', async () => {
-    mockApi('AUDITOR');
-    renderDetail();
-    expect(await screen.findByText('Alice Morgan')).toBeDefined();
-    // Read-only: no assignment picker, no Edit link, no Deactivate toggle.
-    expect(screen.queryByLabelText('Assign a staff member')).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Deactivate|Reactivate/ })).toBeNull();
   });
 });

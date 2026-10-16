@@ -14,7 +14,9 @@ import { requireAssignment } from '../middleware/require-assignment';
  */
 export const weekPlanRouter = Router();
 
-const canRead = requireRole('STAFF', 'MANAGER', 'AUDITOR');
+// AUDITOR is excluded: auditors only read their approved reports
+// (`/:id/report`, scoped in the report controller).
+const canRead = requireRole('STAFF', 'MANAGER');
 const canWrite = requireRole('MANAGER');
 const canRecord = requireRole('STAFF', 'MANAGER');
 

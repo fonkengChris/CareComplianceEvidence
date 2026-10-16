@@ -15,8 +15,7 @@ export async function fetchAuditLogs(): Promise<AuditLogView[]> {
 
 /** A readable one-liner for a change: "recorded Time spent", "changed Contracted hours", etc. */
 export function describeChange(log: AuditLogView): string {
-  const verb =
-    log.action === 'CREATE' ? 'added' : log.action === 'RECORD' ? 'recorded' : 'changed';
+  const verb = log.action === 'CREATE' ? 'added' : log.action === 'RECORD' ? 'recorded' : 'changed';
   const target = log.field ? fieldLabel(log.field) : (log.entityLabel ?? 'record');
   return `${verb} ${target}`;
 }
@@ -30,6 +29,8 @@ export function fieldLabel(field: string): string {
       return 'Outcome';
     case 'contractedHours':
       return 'Contracted hours';
+    case 'status':
+      return 'Auditor access';
     default:
       return field;
   }

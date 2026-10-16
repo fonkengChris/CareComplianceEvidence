@@ -1,5 +1,5 @@
-import { OUTCOMES, ROLES, WEEKDAYS } from '@care/shared';
-import { relations } from 'drizzle-orm';
+import { ACCESS_REQUEST_STATUSES, OUTCOMES, ROLES, WEEKDAYS } from '@care/shared';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   date,
@@ -11,6 +11,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -27,6 +28,7 @@ import {
 export const roleEnum = pgEnum('role', ROLES);
 export const weekdayEnum = pgEnum('weekday', WEEKDAYS);
 export const outcomeEnum = pgEnum('outcome', OUTCOMES);
+export const accessRequestStatusEnum = pgEnum('access_request_status', ACCESS_REQUEST_STATUSES);
 
 const createdAt = timestamp('created_at', { withTimezone: true }).defaultNow().notNull();
 const updatedAt = timestamp('updated_at', { withTimezone: true }).defaultNow().notNull();
@@ -210,6 +212,34 @@ export const staffHomeAssignments = pgTable(
     unique('staff_home_assignments_staff_home').on(t.staffId, t.homeId),
     // "My homes" / access-resolution read path keyed by staff.
     index('staff_home_assignments_staff_idx').on(t.staffId),
+  ],
+);
+
+export const auditorAccessRequests = pgTable(
+  'auditor_access_requests',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // An AUDITOR asks to audit one service user's records; a manager approves/rejects and may
+    // later revoke. Only APPROVED rows scope what the auditor's reports show.
+    auditorId: uuid('auditor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    serviceUserId: uuid('service_user_id')
+      .notNull()
+      .references(() => serviceUsers.id, { onDelete: 'cascade' }),
+    status: accessRequestStatusEnum('status').notNull().default('PENDING'),
+    reason: text('reason'),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).defaultNow().notNull(),
+    // The manager who last decided (approve/reject/revoke); kept null-safe if they are deleted.
+    decidedById: uuid('decided_by_id').references(() => users.id, { onDelete: 'set null' }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [
+    // At most one open (pending or granted) row per pair; rejected/revoked rows stay as history.
+    uniqueIndex('auditor_access_requests_open_pair')
+      .on(t.auditorId, t.serviceUserId)
+      .where(sql`${t.status} in ('PENDING', 'APPROVED')`),
+    index('auditor_access_requests_auditor_idx').on(t.auditorId),
   ],
 );
 
