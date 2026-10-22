@@ -27,7 +27,7 @@ import { PERIOD_PRESETS, type PeriodPreset, presetLabel, presetRange } from '../
  * one-file commissioner PDF. Every figure is backend-owned (CLAUDE.md); the page only displays
  * what /api/summary/period returns. Managers additionally tune the 🟢/🟡/🔴 thresholds below.
  * Auditors see only the service users a manager approved them to audit (server-scoped), plus a
- * panel to request access to more.
+ * panel to request access to more. Key workers see only their own caseload (server-scoped).
  */
 
 /** Remaining hours as text, flagging an overspend the way the PDF does. */
@@ -41,6 +41,7 @@ export default function ReportsPage() {
   const { user } = useAuth();
   const isManager = user?.role === 'MANAGER';
   const isAuditor = user?.role === 'AUDITOR';
+  const isKeyWorker = user?.role === 'KEY_WORKER';
 
   // Default to the current week; presets and the custom inputs move the range from there.
   const [preset, setPreset] = useState<PeriodPreset | null>('week');
@@ -143,7 +144,9 @@ export default function ReportsPage() {
           <CardContent className="p-10 text-center text-muted-foreground">
             {isAuditor
               ? 'No approved service users yet — request access below.'
-              : 'No active service users to report on.'}
+              : isKeyWorker
+                ? 'No service users are assigned to you yet.'
+                : 'No active service users to report on.'}
           </CardContent>
         </Card>
       )}

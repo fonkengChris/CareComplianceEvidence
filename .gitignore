@@ -8,3 +8,7 @@ dist/
 apps/server/reports/
 
 Weekly_Activity_System_Dashboard_v3.xlsx
+
+# Staff roster (PII) and generated plaintext passwords from db:seed-staff
+staff-credentials.ods
+*staff-passwords*.csv

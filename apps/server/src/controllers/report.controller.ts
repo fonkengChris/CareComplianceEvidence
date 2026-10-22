@@ -1,20 +1,37 @@
 import type { Request, Response } from 'express';
 import * as auditorAccessService from '../services/auditor-access.service';
 import * as reportService from '../services/report.service';
+import * as staffAssignmentService from '../services/staff-assignment.service';
 import { serviceUserIdForPlan } from '../services/week-plan.service';
 
 /**
  * Report controller (Phase 8): HTTP glue only (CLAUDE.md layering). Returns the report DATA a
  * client renders into a PDF — for one week plan, for one service user over a longer period, or
- * the whole-period overview across service users. Role (MANAGER/AUDITOR) is enforced by route
- * middleware; an AUDITOR is further scoped here to the service users a manager approved them to
- * audit — anything else reads as 404 (never reveal existence), and the overview lists only those.
+ * the whole-period overview across service users. Role (MANAGER/AUDITOR/KEY_WORKER) is enforced
+ * by route middleware; an AUDITOR is further scoped here to the service users a manager approved
+ * them to audit, and a KEY_WORKER to their own caseload (direct or home assignment) — anything else
+ * reads as 404 (never reveal existence), and the overview lists only those.
  */
 
-/** Whether the caller may see a service user's reports: managers always, auditors if approved. */
+/**
+ * Whether the caller may see a service user's reports: managers always, auditors if approved,
+ * key workers if the service user is in their caseload.
+ */
 async function canSeeServiceUser(req: Request, serviceUserId: string): Promise<boolean> {
-  if (req.user!.role !== 'AUDITOR') return true;
-  return auditorAccessService.isAuditorApproved(req.user!.sub, serviceUserId);
+  const { role, sub } = req.user!;
+  if (role === 'AUDITOR') return auditorAccessService.isAuditorApproved(sub, serviceUserId);
+  if (role === 'KEY_WORKER') return staffAssignmentService.isStaffAssigned(sub, serviceUserId);
+  return true;
+}
+
+/** The service-user ids the caller's overview is limited to, or undefined for "all" (managers). */
+async function scopeFor(req: Request): Promise<string[] | undefined> {
+  const { role, sub } = req.user!;
+  if (role === 'AUDITOR') return auditorAccessService.approvedServiceUserIds(sub);
+  if (role === 'KEY_WORKER') {
+    return (await staffAssignmentService.listAssignmentsForStaff(sub)).map((su) => su.id);
+  }
+  return undefined;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -23,7 +40,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_WEEKS = 53;
 
 export async function getWeekPlanReport(req: Request, res: Response): Promise<void> {
-  if (req.user!.role === 'AUDITOR') {
+  if (req.user!.role !== 'MANAGER') {
     const serviceUserId = await serviceUserIdForPlan(String(req.params.id));
     if (serviceUserId === null || !(await canSeeServiceUser(req, serviceUserId))) {
       res.status(404).json({ error: 'Week plan not found' });
@@ -92,9 +109,5 @@ export async function getServiceUserPeriodReport(req: Request, res: Response): P
 export async function getPeriodSummary(req: Request, res: Response): Promise<void> {
   const range = parseRange(req, res);
   if (!range) return;
-  const scope =
-    req.user!.role === 'AUDITOR'
-      ? await auditorAccessService.approvedServiceUserIds(req.user!.sub)
-      : undefined;
-  res.json(await reportService.getPeriodSummary(range.from, range.to, scope));
+  res.json(await reportService.getPeriodSummary(range.from, range.to, await scopeFor(req)));
 }

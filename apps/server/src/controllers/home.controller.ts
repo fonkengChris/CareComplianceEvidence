@@ -1,12 +1,21 @@
-import { homeCreateSchema, homeUpdateSchema } from '@care/shared';
+import { homeCreateSchema, homeUpdateSchema, isAssignmentScoped } from '@care/shared';
 import type { Request, Response } from 'express';
+import * as homeAssignmentService from '../services/home-assignment.service';
 import * as homeService from '../services/home.service';
 
 /**
  * Home controllers: HTTP glue only — validate input, call the service, map to status
- * codes (CLAUDE.md layering). Reads are open to any authenticated role; writes are
- * MANAGER-only, enforced by route middleware.
+ * codes (CLAUDE.md layering). Reads are open to STAFF/KEY_WORKER/MANAGER; writes are
+ * MANAGER-only, enforced by route middleware. STAFF/KEY_WORKER only see the homes they are
+ * assigned to — any other home reads as 404 (never reveal existence).
  */
+
+/** Whether the caller may read a home: managers always, staff only for homes they belong to. */
+async function canSeeHome(req: Request, homeId: string): Promise<boolean> {
+  if (!isAssignmentScoped(req.user!.role)) return true;
+  const mine = await homeAssignmentService.listHomesForStaff(req.user!.sub);
+  return mine.some((h) => h.id === homeId);
+}
 
 /** Parse the optional ?active=true|false filter; anything else means "no filter". */
 function parseActiveFilter(raw: unknown): boolean | undefined {
@@ -17,10 +26,19 @@ function parseActiveFilter(raw: unknown): boolean | undefined {
 
 export async function list(req: Request, res: Response): Promise<void> {
   const active = parseActiveFilter(req.query.active);
+  if (isAssignmentScoped(req.user!.role)) {
+    const mine = await homeAssignmentService.listHomesForStaff(req.user!.sub);
+    res.json(active === undefined ? mine : mine.filter((h) => h.active === active));
+    return;
+  }
   res.json(await homeService.listHomes({ active }));
 }
 
 export async function getById(req: Request, res: Response): Promise<void> {
+  if (!(await canSeeHome(req, String(req.params.id)))) {
+    res.status(404).json({ error: 'Home not found' });
+    return;
+  }
   const found = await homeService.getHome(String(req.params.id));
   if (!found) {
     res.status(404).json({ error: 'Home not found' });
@@ -31,6 +49,11 @@ export async function getById(req: Request, res: Response): Promise<void> {
 
 /** GET /homes/:id/service-users — the active service users belonging to a home. */
 export async function listServiceUsers(req: Request, res: Response): Promise<void> {
+  // Home members reach every service user in the home, so the full list is theirs to see.
+  if (!(await canSeeHome(req, String(req.params.id)))) {
+    res.status(404).json({ error: 'Home not found' });
+    return;
+  }
   res.json(await homeService.listServiceUsersForHome(String(req.params.id)));
 }
 

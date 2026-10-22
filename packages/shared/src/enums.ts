@@ -10,7 +10,11 @@ import { z } from 'zod';
  * tuples as literal unions. Keep this file dependency-free (no imports from other
  * domain files) to avoid import cycles through the barrel.
  */
-export const ROLES = ['STAFF', 'MANAGER', 'AUDITOR'] as const;
+/**
+ * KEY_WORKER is a staff member in charge of a caseload: they record like STAFF and may also read
+ * reports, but only for the service users assigned to them (directly or via a home).
+ */
+export const ROLES = ['STAFF', 'KEY_WORKER', 'MANAGER', 'AUDITOR'] as const;
 export const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'] as const;
 export const OUTCOMES = [
   'COMPLETED',
@@ -32,3 +36,11 @@ export type Role = z.infer<typeof roleSchema>;
 export type Weekday = z.infer<typeof weekdaySchema>;
 export type Outcome = z.infer<typeof outcomeSchema>;
 export type AccessRequestStatus = z.infer<typeof accessRequestStatusSchema>;
+
+/**
+ * Whether a role's reach is limited to its assigned service users (direct + home union). STAFF
+ * and KEY_WORKER are; MANAGER covers everyone and AUDITOR is scoped by approved access instead.
+ */
+export function isAssignmentScoped(role: Role): boolean {
+  return role === 'STAFF' || role === 'KEY_WORKER';
+}

@@ -4,7 +4,7 @@ import { requireAuth, requireRole } from '../middleware/auth';
 
 /**
  * Staff-assignment routes (the supervision group). `me` returns the caller's own
- * assigned service users (STAFF or MANAGER). Managing the group — listing a service
+ * assigned service users (STAFF, KEY_WORKER or MANAGER). Managing the group — listing a service
  * user's staff, assigning, unassigning — is MANAGER-only, enforced here not just in the
  * UI (CLAUDE.md). Roles are checked after requireAuth attaches req.user.
  */
@@ -15,13 +15,13 @@ const canManage = requireRole('MANAGER');
 staffAssignmentRouter.get(
   '/me',
   requireAuth,
-  requireRole('STAFF', 'MANAGER'),
+  requireRole('STAFF', 'KEY_WORKER', 'MANAGER'),
   staffAssignmentController.me,
 );
 staffAssignmentRouter.get(
   '/my-homes',
   requireAuth,
-  requireRole('STAFF', 'MANAGER'),
+  requireRole('STAFF', 'KEY_WORKER', 'MANAGER'),
   staffAssignmentController.myHomes,
 );
 staffAssignmentRouter.get(

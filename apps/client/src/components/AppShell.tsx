@@ -32,6 +32,8 @@ function navItems(role: string | undefined): NavItem[] {
   // Auditors only have the Reports page (scoped to the service users they're approved for).
   if (role === 'AUDITOR') return [{ to: '/reports', label: 'Reports', icon: FileText }];
   const items: NavItem[] = [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }];
+  // Key workers record like staff and also read reports for their own caseload.
+  if (role === 'KEY_WORKER') items.push({ to: '/reports', label: 'Reports', icon: FileText });
   if (role === 'MANAGER') {
     items.push({ to: '/service-users', label: 'Service Users', icon: Users });
     items.push({ to: '/homes', label: 'Homes', icon: Home });

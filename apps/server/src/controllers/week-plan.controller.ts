@@ -1,4 +1,5 @@
 import {
+  isAssignmentScoped,
   dayEntriesReplaceSchema,
   dayEntryRecordSchema,
   dayEntryStaffCreateSchema,
@@ -20,12 +21,11 @@ import * as weekPlanService from '../services/week-plan.service';
 export async function list(req: Request, res: Response): Promise<void> {
   const raw = req.query.serviceUserId;
   const serviceUserId = typeof raw === 'string' && raw.length > 0 ? raw : undefined;
-  // STAFF are scoped to the service users in their supervision group; managers and
-  // auditors see every plan (CLAUDE.md).
-  const rows =
-    req.user!.role === 'STAFF'
-      ? await weekPlanService.listWeekPlansForStaff(req.user!.sub, serviceUserId)
-      : await weekPlanService.listWeekPlans({ serviceUserId });
+  // STAFF/KEY_WORKER are scoped to the service users in their supervision group; managers
+  // see every plan (CLAUDE.md).
+  const rows = isAssignmentScoped(req.user!.role)
+    ? await weekPlanService.listWeekPlansForStaff(req.user!.sub, serviceUserId)
+    : await weekPlanService.listWeekPlans({ serviceUserId });
   res.json(rows);
 }
 
@@ -35,8 +35,11 @@ export async function getById(req: Request, res: Response): Promise<void> {
     res.status(404).json({ error: 'Week plan not found' });
     return;
   }
-  // Out-of-group plans are hidden from STAFF as 404 (never reveal existence).
-  if (req.user!.role === 'STAFF' && !(await isStaffAssigned(req.user!.sub, found.serviceUserId))) {
+  // Out-of-group plans are hidden from STAFF/KEY_WORKER as 404 (never reveal existence).
+  if (
+    isAssignmentScoped(req.user!.role) &&
+    !(await isStaffAssigned(req.user!.sub, found.serviceUserId))
+  ) {
     res.status(404).json({ error: 'Week plan not found' });
     return;
   }

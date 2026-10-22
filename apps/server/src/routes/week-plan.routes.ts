@@ -16,19 +16,19 @@ export const weekPlanRouter = Router();
 
 // AUDITOR is excluded: auditors only read their approved reports
 // (`/:id/report`, scoped in the report controller).
-const canRead = requireRole('STAFF', 'MANAGER');
+const canRead = requireRole('STAFF', 'KEY_WORKER', 'MANAGER');
 const canWrite = requireRole('MANAGER');
-const canRecord = requireRole('STAFF', 'MANAGER');
+const canRecord = requireRole('STAFF', 'KEY_WORKER', 'MANAGER');
 
 weekPlanRouter.get('/', requireAuth, canRead, weekPlanController.list);
 weekPlanRouter.get('/:id', requireAuth, canRead, weekPlanController.getById);
-// Commissioner PDF report (Phase 8): reporting is MANAGER/AUDITOR only, matching the
-// weekly summary — STAFF are excluded. Distinct `/:id/report` suffix, so it never shadows
+// Commissioner PDF report (Phase 8): MANAGER, plus AUDITOR/KEY_WORKER scoped to their service
+// users in the report controller — STAFF are excluded. Distinct `/:id/report` suffix, so it never shadows
 // `GET /:id`. Returns the report DATA; the client renders the PDF (CLAUDE.md-owned figures).
 weekPlanRouter.get(
   '/:id/report',
   requireAuth,
-  requireRole('MANAGER', 'AUDITOR'),
+  requireRole('MANAGER', 'AUDITOR', 'KEY_WORKER'),
   reportController.getWeekPlanReport,
 );
 weekPlanRouter.post('/', requireAuth, canWrite, weekPlanController.create);

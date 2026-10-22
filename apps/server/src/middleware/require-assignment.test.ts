@@ -73,6 +73,14 @@ describe('requireAssignment', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('403s a KEY_WORKER for a service user outside their caseload', async () => {
+    weekPlanMock.serviceUserIdForPlan.mockResolvedValueOnce('su-1');
+    assignmentMock.isStaffAssigned.mockResolvedValueOnce(false);
+    const { res, next } = await run({ ...staff, role: 'KEY_WORKER' });
+    expect(res.statusCode).toBe(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('404s when the plan is unknown', async () => {
     weekPlanMock.serviceUserIdForPlan.mockResolvedValueOnce(null);
     const { res, next } = await run(staff);

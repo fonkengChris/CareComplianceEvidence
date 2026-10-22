@@ -1,3 +1,4 @@
+import { isAssignmentScoped } from '@care/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
@@ -82,7 +83,7 @@ export default function HomeDetailPage() {
   }
 
   const unassignedStaff = (allUsers.data ?? []).filter(
-    (u) => u.role === 'STAFF' && !(assignedStaff.data ?? []).some((a) => a.id === u.id),
+    (u) => isAssignmentScoped(u.role) && !(assignedStaff.data ?? []).some((a) => a.id === u.id),
   );
 
   return (

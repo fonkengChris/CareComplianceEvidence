@@ -1,9 +1,10 @@
+import { isAssignmentScoped } from '@care/shared';
 import type { RequestHandler } from 'express';
 import { isStaffAssigned } from '../services/staff-assignment.service';
 import { serviceUserIdForPlan } from '../services/week-plan.service';
 
 /**
- * Guard for the staff recording endpoints: a STAFF user may only act on a plan whose
+ * Guard for the staff recording endpoints: a STAFF/KEY_WORKER user may only act on a plan whose
  * service user is in their supervision group. Resolves the plan (`:id`) to its service
  * user and checks the assignment; MANAGER bypasses (they cover everyone). Assumes
  * requireAuth ran first so `req.user` is set. Enforced HERE on the server, not just in
@@ -16,7 +17,7 @@ export const requireAssignment: RequestHandler = async (req, res, next) => {
     return;
   }
   // Managers (and any non-staff caller that reaches here) are not scoped to a group.
-  if (user.role !== 'STAFF') {
+  if (!isAssignmentScoped(user.role)) {
     next();
     return;
   }

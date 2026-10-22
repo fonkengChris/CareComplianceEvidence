@@ -1,5 +1,4 @@
-import { randomInt } from 'node:crypto';
-import { hashPassword } from '../auth/password';
+import { generateStrongPassword, hashPassword } from '../auth/password';
 import { client, db } from './index';
 import { activityTypes, complianceSettings, users } from './schema';
 
@@ -48,31 +47,6 @@ const DEFAULT_COMPLIANCE = {
     'the person’s engagement and mood, any concerns, changes or incidents, and the outcome. ' +
     'Be factual and objective — describe what you observed, not opinions.',
 };
-
-// Look-alike characters (0/O, 1/l/I) are excluded so the password is easy to copy by hand.
-const CHARSETS = [
-  'ABCDEFGHJKLMNPQRSTUVWXYZ',
-  'abcdefghijkmnopqrstuvwxyz',
-  '23456789',
-  '!@#$%^&*-_=+?',
-];
-const PASSWORD_LENGTH = 20;
-
-/**
- * Cryptographically random password of PASSWORD_LENGTH chars, guaranteed to contain at
- * least one upper, lower, digit and symbol. `randomInt` is uniform (no modulo bias).
- */
-function generateStrongPassword(): string {
-  const all = CHARSETS.join('');
-  const chars = CHARSETS.map((set) => set[randomInt(set.length)]);
-  while (chars.length < PASSWORD_LENGTH) chars.push(all[randomInt(all.length)]);
-  // Fisher–Yates shuffle so the guaranteed characters aren't always at the front.
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = randomInt(i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]];
-  }
-  return chars.join('');
-}
 
 const password = generateStrongPassword();
 

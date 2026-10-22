@@ -1,4 +1,4 @@
-import type { Home } from '@care/shared';
+import type { Home, User } from '@care/shared';
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import type { Request, Response } from 'express';
 
@@ -16,7 +16,16 @@ const serviceMock = {
   listServiceUsersForHome: mock(() => Promise.resolve([])),
 };
 
+// Full surface of the module, so other files importing it under this mock don't hit undefined.
+const homeAssignmentMock = {
+  listStaffForHome: mock((): Promise<User[]> => Promise.resolve([])),
+  listHomesForStaff: mock((): Promise<Home[]> => Promise.resolve([])),
+  assignHome: mock((): Promise<void> => Promise.resolve()),
+  unassignHome: mock((): Promise<void> => Promise.resolve()),
+};
+
 mock.module('../services/home.service', () => serviceMock);
+mock.module('../services/home-assignment.service', () => homeAssignmentMock);
 
 const controller = await import('./home.controller');
 
@@ -52,15 +61,73 @@ afterEach(() => {
   serviceMock.updateHome.mockReset();
   serviceMock.setHomeActive.mockReset();
   serviceMock.listServiceUsersForHome.mockReset();
+  homeAssignmentMock.listHomesForStaff.mockReset();
 });
+
+const managerUser = {
+  sub: '99999999-9999-4999-8999-999999999999',
+  role: 'MANAGER' as const,
+  email: 'manager@example.com',
+};
+const staffUser = { ...managerUser, role: 'STAFF' as const };
+const OTHER_HOME = '44444444-4444-4444-8444-444444444444';
 
 describe('list', () => {
   it('passes the ?active=true filter through and returns the rows', async () => {
     serviceMock.listHomes.mockResolvedValueOnce([sample]);
     const res = mockRes();
-    await controller.list({ query: { active: 'true' } } as unknown as Request, res);
+    await controller.list(
+      { query: { active: 'true' }, user: managerUser } as unknown as Request,
+      res,
+    );
     expect(serviceMock.listHomes).toHaveBeenCalledWith({ active: true });
     expect(res.body).toEqual([sample]);
+  });
+});
+
+describe('staff / key worker scoping', () => {
+  it('lists only the homes the caller belongs to', async () => {
+    homeAssignmentMock.listHomesForStaff.mockResolvedValueOnce([sample]);
+    const res = mockRes();
+    await controller.list({ query: {}, user: staffUser } as unknown as Request, res);
+    expect(homeAssignmentMock.listHomesForStaff).toHaveBeenCalledWith(staffUser.sub);
+    expect(serviceMock.listHomes).not.toHaveBeenCalled();
+    expect(res.body).toEqual([sample]);
+  });
+
+  it("404s a home the caller doesn't belong to", async () => {
+    homeAssignmentMock.listHomesForStaff.mockResolvedValueOnce([sample]);
+    const res = mockRes();
+    await controller.getById(
+      {
+        params: { id: OTHER_HOME },
+        user: { ...staffUser, role: 'KEY_WORKER' },
+      } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(404);
+    expect(serviceMock.getHome).not.toHaveBeenCalled();
+  });
+
+  it("404s the service users of a home the caller doesn't belong to", async () => {
+    homeAssignmentMock.listHomesForStaff.mockResolvedValueOnce([]);
+    const res = mockRes();
+    await controller.listServiceUsers(
+      { params: { id: sample.id }, user: staffUser } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(404);
+    expect(serviceMock.listServiceUsersForHome).not.toHaveBeenCalled();
+  });
+
+  it("returns a member's home service users", async () => {
+    homeAssignmentMock.listHomesForStaff.mockResolvedValueOnce([sample]);
+    const res = mockRes();
+    await controller.listServiceUsers(
+      { params: { id: sample.id }, user: staffUser } as unknown as Request,
+      res,
+    );
+    expect(serviceMock.listServiceUsersForHome).toHaveBeenCalledWith(sample.id);
   });
 });
 
@@ -68,14 +135,20 @@ describe('getById', () => {
   it('404s when the home does not exist', async () => {
     serviceMock.getHome.mockResolvedValueOnce(null);
     const res = mockRes();
-    await controller.getById({ params: { id: sample.id } } as unknown as Request, res);
+    await controller.getById(
+      { params: { id: sample.id }, user: managerUser } as unknown as Request,
+      res,
+    );
     expect(res.statusCode).toBe(404);
   });
 
   it('returns the home when found', async () => {
     serviceMock.getHome.mockResolvedValueOnce(sample);
     const res = mockRes();
-    await controller.getById({ params: { id: sample.id } } as unknown as Request, res);
+    await controller.getById(
+      { params: { id: sample.id }, user: managerUser } as unknown as Request,
+      res,
+    );
     expect(res.body).toEqual(sample);
   });
 });

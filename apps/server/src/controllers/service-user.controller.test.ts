@@ -16,7 +16,18 @@ const serviceMock = {
   setServiceUserActive: mock((): Promise<ServiceUser | null> => Promise.resolve(null)),
 };
 
+// Full surface of the module, so other files importing it under this mock don't hit undefined.
+const assignmentMock = {
+  homeIdsForStaff: mock((): Promise<string[]> => Promise.resolve([])),
+  listAssignmentsForStaff: mock((): Promise<ServiceUser[]> => Promise.resolve([])),
+  listStaffForServiceUser: mock(() => Promise.resolve([])),
+  assign: mock((): Promise<void> => Promise.resolve()),
+  unassign: mock((): Promise<void> => Promise.resolve()),
+  isStaffAssigned: mock((): Promise<boolean> => Promise.resolve(false)),
+};
+
 mock.module('../services/service-user.service', () => serviceMock);
+mock.module('../services/staff-assignment.service', () => assignmentMock);
 
 const controller = await import('./service-user.controller');
 
@@ -60,13 +71,20 @@ afterEach(() => {
   serviceMock.createServiceUser.mockReset();
   serviceMock.updateServiceUser.mockReset();
   serviceMock.setServiceUserActive.mockReset();
+  assignmentMock.listAssignmentsForStaff.mockReset();
+  assignmentMock.isStaffAssigned.mockReset();
 });
+
+const staffUser = { ...managerUser, role: 'STAFF' as const };
 
 describe('list', () => {
   it('passes the ?active=true filter through and returns the rows', async () => {
     serviceMock.listServiceUsers.mockResolvedValueOnce([sample]);
     const res = mockRes();
-    await controller.list({ query: { active: 'true' } } as unknown as Request, res);
+    await controller.list(
+      { query: { active: 'true' }, user: managerUser } as unknown as Request,
+      res,
+    );
     expect(serviceMock.listServiceUsers).toHaveBeenCalledWith({ active: true });
     expect(res.body).toEqual([sample]);
   });
@@ -74,8 +92,57 @@ describe('list', () => {
   it('treats a missing/invalid filter as no filter', async () => {
     serviceMock.listServiceUsers.mockResolvedValueOnce([]);
     const res = mockRes();
-    await controller.list({ query: {} } as unknown as Request, res);
+    await controller.list({ query: {}, user: managerUser } as unknown as Request, res);
     expect(serviceMock.listServiceUsers).toHaveBeenCalledWith({ active: undefined });
+  });
+});
+
+describe('list (staff / key worker)', () => {
+  it('returns only the service users the caller is assigned to', async () => {
+    assignmentMock.listAssignmentsForStaff.mockResolvedValueOnce([sample]);
+    const res = mockRes();
+    await controller.list({ query: {}, user: staffUser } as unknown as Request, res);
+    expect(assignmentMock.listAssignmentsForStaff).toHaveBeenCalledWith(staffUser.sub);
+    expect(serviceMock.listServiceUsers).not.toHaveBeenCalled();
+    expect(res.body).toEqual([sample]);
+  });
+
+  it('applies ?active=false to a key worker caseload', async () => {
+    assignmentMock.listAssignmentsForStaff.mockResolvedValueOnce([sample]);
+    const res = mockRes();
+    await controller.list(
+      {
+        query: { active: 'false' },
+        user: { ...staffUser, role: 'KEY_WORKER' },
+      } as unknown as Request,
+      res,
+    );
+    expect(res.body).toEqual([]);
+  });
+});
+
+describe('getById (staff / key worker)', () => {
+  it('404s a service user the caller is not assigned to, without loading it', async () => {
+    assignmentMock.isStaffAssigned.mockResolvedValueOnce(false);
+    const res = mockRes();
+    await controller.getById(
+      { params: { id: sample.id }, user: staffUser } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(404);
+    expect(serviceMock.getServiceUser).not.toHaveBeenCalled();
+  });
+
+  it('returns an assigned service user', async () => {
+    assignmentMock.isStaffAssigned.mockResolvedValueOnce(true);
+    serviceMock.getServiceUser.mockResolvedValueOnce(sample);
+    const res = mockRes();
+    await controller.getById(
+      { params: { id: sample.id }, user: staffUser } as unknown as Request,
+      res,
+    );
+    expect(assignmentMock.isStaffAssigned).toHaveBeenCalledWith(staffUser.sub, sample.id);
+    expect(res.body).toEqual(sample);
   });
 });
 
@@ -83,14 +150,20 @@ describe('getById', () => {
   it('404s when the service user does not exist', async () => {
     serviceMock.getServiceUser.mockResolvedValueOnce(null);
     const res = mockRes();
-    await controller.getById({ params: { id: sample.id } } as unknown as Request, res);
+    await controller.getById(
+      { params: { id: sample.id }, user: managerUser } as unknown as Request,
+      res,
+    );
     expect(res.statusCode).toBe(404);
   });
 
   it('returns the service user when found', async () => {
     serviceMock.getServiceUser.mockResolvedValueOnce(sample);
     const res = mockRes();
-    await controller.getById({ params: { id: sample.id } } as unknown as Request, res);
+    await controller.getById(
+      { params: { id: sample.id }, user: managerUser } as unknown as Request,
+      res,
+    );
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual(sample);
   });
@@ -131,7 +204,11 @@ describe('update', () => {
     serviceMock.updateServiceUser.mockResolvedValueOnce(null);
     const res = mockRes();
     await controller.update(
-      { params: { id: sample.id }, body: { name: 'New name' }, user: managerUser } as unknown as Request,
+      {
+        params: { id: sample.id },
+        body: { name: 'New name' },
+        user: managerUser,
+      } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(404);
@@ -141,7 +218,11 @@ describe('update', () => {
     serviceMock.updateServiceUser.mockResolvedValueOnce(sample);
     const res = mockRes();
     await controller.update(
-      { params: { id: sample.id }, body: { name: 'Ada Lovelace' }, user: managerUser } as unknown as Request,
+      {
+        params: { id: sample.id },
+        body: { name: 'Ada Lovelace' },
+        user: managerUser,
+      } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(200);
@@ -166,7 +247,11 @@ describe('setActive', () => {
     serviceMock.setServiceUserActive.mockResolvedValueOnce(null);
     const res = mockRes();
     await controller.setActive(
-      { params: { id: sample.id }, body: { active: false }, user: managerUser } as unknown as Request,
+      {
+        params: { id: sample.id },
+        body: { active: false },
+        user: managerUser,
+      } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(404);
@@ -177,10 +262,18 @@ describe('setActive', () => {
     serviceMock.setServiceUserActive.mockResolvedValueOnce(deactivated);
     const res = mockRes();
     await controller.setActive(
-      { params: { id: sample.id }, body: { active: false }, user: managerUser } as unknown as Request,
+      {
+        params: { id: sample.id },
+        body: { active: false },
+        user: managerUser,
+      } as unknown as Request,
       res,
     );
-    expect(serviceMock.setServiceUserActive).toHaveBeenCalledWith(sample.id, false, managerUser.sub);
+    expect(serviceMock.setServiceUserActive).toHaveBeenCalledWith(
+      sample.id,
+      false,
+      managerUser.sub,
+    );
     expect(res.body).toEqual(deactivated);
   });
 });

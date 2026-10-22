@@ -31,8 +31,8 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route path="/" element={<DashboardPage />} />
           {/* Reports are the only page an auditor sees — scoped server-side to the service
-              users a manager approved them to audit. */}
-          <Route element={<ProtectedRoute roles={['MANAGER', 'AUDITOR']} />}>
+              users a manager approved them to audit. Key workers see their own caseload. */}
+          <Route element={<ProtectedRoute roles={['MANAGER', 'AUDITOR', 'KEY_WORKER']} />}>
             <Route path="/reports" element={<ReportsPage />} />
           </Route>
           {/* Read-only manager views: audit history (Phase 9), service users, homes and week
@@ -46,8 +46,8 @@ export default function App() {
             <Route path="/homes/:id" element={<HomeDetailPage />} />
             <Route path="/week-plans/:id" element={<WeekPlanDetailPage />} />
           </Route>
-          {/* Staff recording (Phase 5): STAFF (scoped to their group) and managers. */}
-          <Route element={<ProtectedRoute roles={['STAFF', 'MANAGER']} />}>
+          {/* Staff recording (Phase 5): STAFF/KEY_WORKER (scoped to their group) and managers. */}
+          <Route element={<ProtectedRoute roles={['STAFF', 'KEY_WORKER', 'MANAGER']} />}>
             <Route path="/week-plans/:id/record" element={<RecordWeekPage />} />
           </Route>
           {/* Service user / user management and planning writes are MANAGER-only

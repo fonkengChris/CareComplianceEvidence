@@ -1,3 +1,4 @@
+import { isAssignmentScoped } from '@care/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CalendarDays, LayoutTemplate, Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -105,7 +106,7 @@ export default function ServiceUserDetailPage() {
 
   // Staff not yet assigned to this service user — the pool the Assign picker offers.
   const unassignedStaff = (allUsers.data ?? []).filter(
-    (u) => u.role === 'STAFF' && !(assignedStaff.data ?? []).some((a) => a.id === u.id),
+    (u) => isAssignmentScoped(u.role) && !(assignedStaff.data ?? []).some((a) => a.id === u.id),
   );
 
   return (

@@ -107,4 +107,25 @@ describe('App routing', () => {
       expect(navLinks).not.toContain(hidden);
     }
   });
+
+  it('lands a key worker on their recording dashboard with Dashboard + Reports nav only', async () => {
+    mockApi(async (url) => {
+      if (url === '/api/auth/refresh') {
+        return jsonResponse({ accessToken: 't', user: { ...user, role: 'KEY_WORKER' } });
+      }
+      if (url === '/api/assignments/me' || url.startsWith('/api/week-plans')) {
+        return jsonResponse([]);
+      }
+      return new Response(null, { status: 404 });
+    });
+
+    renderApp();
+    expect(await screen.findByText('You have no assigned service users yet.')).toBeDefined();
+    const navLinks = screen.getAllByRole('link').map((a) => a.textContent?.trim());
+    expect(navLinks).toContain('Dashboard');
+    expect(navLinks).toContain('Reports');
+    for (const hidden of ['Service Users', 'Homes', 'Audit', 'Users', 'Access requests']) {
+      expect(navLinks).not.toContain(hidden);
+    }
+  });
 });

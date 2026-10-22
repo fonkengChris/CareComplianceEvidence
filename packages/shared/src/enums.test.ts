@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   OUTCOMES,
   ROLES,
+  isAssignmentScoped,
   WEEKDAYS,
   outcomeSchema,
   roleSchema,
@@ -9,8 +10,12 @@ import {
 } from './enums';
 
 describe('shared enums', () => {
-  it('ROLES has exactly the three roles', () => {
-    expect([...ROLES]).toEqual(['STAFF', 'MANAGER', 'AUDITOR']);
+  it('ROLES has exactly the four roles', () => {
+    expect([...ROLES]).toEqual(['STAFF', 'KEY_WORKER', 'MANAGER', 'AUDITOR']);
+  });
+
+  it('scopes STAFF and KEY_WORKER to their assignments, not MANAGER/AUDITOR', () => {
+    expect(ROLES.filter(isAssignmentScoped)).toEqual(['STAFF', 'KEY_WORKER']);
   });
 
   it('WEEKDAYS covers Mon–Sun', () => {

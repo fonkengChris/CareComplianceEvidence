@@ -13,11 +13,12 @@ export const summaryRouter = Router();
 
 summaryRouter.get('/', requireAuth, requireRole('MANAGER'), summaryController.getWeekly);
 // Whole-period reports overview (weeks/months/up to a year) across every active service user —
-// for an AUDITOR only those they are approved to audit (scoped in the report controller). Each
+// for an AUDITOR only those they are approved to audit, for a KEY_WORKER only their caseload
+// (both scoped in the report controller). Each
 // row is a self-contained per-service-user report ready to render as a PDF.
 summaryRouter.get(
   '/period',
   requireAuth,
-  requireRole('MANAGER', 'AUDITOR'),
+  requireRole('MANAGER', 'AUDITOR', 'KEY_WORKER'),
   reportController.getPeriodSummary,
 );

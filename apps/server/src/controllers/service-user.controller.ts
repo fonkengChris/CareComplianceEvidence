@@ -1,10 +1,13 @@
-import { serviceUserCreateSchema, serviceUserUpdateSchema } from '@care/shared';
+import { isAssignmentScoped, serviceUserCreateSchema, serviceUserUpdateSchema } from '@care/shared';
 import type { Request, Response } from 'express';
 import * as serviceUserService from '../services/service-user.service';
+import * as staffAssignmentService from '../services/staff-assignment.service';
 
 /**
  * Service-user controllers: HTTP glue only — validate input, call the service, map
  * results to status codes. No business logic or DB access here (CLAUDE.md layering).
+ * STAFF/KEY_WORKER reads are scoped to the service users they reach (direct or via a home);
+ * anything else reads as 404 (never reveal existence).
  */
 
 /** Parse the optional ?active=true|false filter; anything else means "no filter". */
@@ -16,12 +19,26 @@ function parseActiveFilter(raw: unknown): boolean | undefined {
 
 export async function list(req: Request, res: Response): Promise<void> {
   const active = parseActiveFilter(req.query.active);
+  if (isAssignmentScoped(req.user!.role)) {
+    // A staff member's reach only ever holds active service users.
+    const rows = await staffAssignmentService.listAssignmentsForStaff(req.user!.sub);
+    res.json(active === undefined ? rows : rows.filter((su) => su.active === active));
+    return;
+  }
   const rows = await serviceUserService.listServiceUsers({ active });
   res.json(rows);
 }
 
 export async function getById(req: Request, res: Response): Promise<void> {
-  const found = await serviceUserService.getServiceUser(String(req.params.id));
+  const id = String(req.params.id);
+  if (
+    isAssignmentScoped(req.user!.role) &&
+    !(await staffAssignmentService.isStaffAssigned(req.user!.sub, id))
+  ) {
+    res.status(404).json({ error: 'Service user not found' });
+    return;
+  }
+  const found = await serviceUserService.getServiceUser(id);
   if (!found) {
     res.status(404).json({ error: 'Service user not found' });
     return;

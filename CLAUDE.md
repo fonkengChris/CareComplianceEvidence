@@ -36,7 +36,7 @@ WeekPlanTemplate (id, serviceUserId [unique], notes)  — one reusable planner p
   └── TemplateDayEntry (id, templateId, day, lineNumber, activity, description, timeAllocated)  — plan-time only (no timeSpent/outcome)
 
 ActivityType (id, name, active)  — standardised list, admin-maintained
-User (id, name, role, passwordHash)  — role: STAFF | MANAGER | AUDITOR
+User (id, name, role, passwordHash)  — role: STAFF | KEY_WORKER | MANAGER | AUDITOR
 RefreshToken (id, userId, tokenHash, expiresAt, revokedAt)  — server-side, revocable
 ComplianceSettings (id, greenMin, amberMin, redOverPct, ...)  — configurable 🟢/🟡/🔴 boundaries
 AuditLog (who, what, from, to, timestamp)
@@ -57,6 +57,7 @@ Rules to preserve when touching this model:
 | Role | Can | Cannot |
 |---|---|---|
 | **STAFF** | View assigned plans, record time spent/comments/outcome | Change contracted hours, edit allocated time, manage service users, edit calculated totals |
+| **KEY_WORKER** | Everything STAFF can, plus the Reports page (period reports + PDFs) — only for their caseload: the service users assigned to them (directly or via a home) | Any read or report for service users outside their caseload; anything STAFF cannot do |
 | **MANAGER** | Full CRUD on service users, week plans, activities; view summaries/reports | — |
 | **AUDITOR** | Reports page only — for the service users a manager has **approved** them to audit (they request access per service user; manager approves/rejects/revokes) | Any write except raising/withdrawing their own access requests; any other read (dashboard, service users, homes, week plans, audit history, settings) |
 
@@ -115,6 +116,7 @@ bun run typecheck     # typecheck every workspace
 bun run db:generate   # generate a versioned SQL migration from schema.ts
 bun run db:migrate    # apply committed migrations (auditable; preferred over db:push)
 bun run db:create-admin # create admin (random pw, printed once) + activities/compliance defaults (idempotent)
+bun run db:seed-staff   # create staff logins from root staff-credentials.ods (random pw each, printed once; idempotent)
 ```
 
 Migration workflow is **generate → migrate → create-admin** (versioned SQL, not `db:push`) for an

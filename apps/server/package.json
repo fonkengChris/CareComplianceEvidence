@@ -10,6 +10,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts",
     "db:create-admin": "bun run src/db/create-admin.ts",
+    "db:seed-staff": "bun run src/db/seed-staff.ts",
     "db:mock": "bun run src/db/mock.ts",
     "db:push": "drizzle-kit push"
   },
