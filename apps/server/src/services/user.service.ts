@@ -2,7 +2,7 @@ import type { User, UserUpdate } from '@care/shared';
 import { asc, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { isUniqueViolation } from '../db/errors';
-import { users } from '../db/schema';
+import { auditLogs, users } from '../db/schema';
 import { hashPassword } from '../auth/password';
 import { revokeAllForUser, toPublicUser } from './auth.service';
 
@@ -55,4 +55,29 @@ export async function updateUser(id: string, input: UserUpdate): Promise<UpdateU
     if (isUniqueViolation(err)) return { ok: false, reason: 'conflict' };
     throw err;
   }
+}
+
+export type DeleteUserResult = 'deleted' | 'not-found' | 'has-audit-history';
+
+/**
+ * Permanently delete a user who has never made an audited change. Their refresh tokens,
+ * staff/home assignments and auditor access requests go with them (FK cascades). Once they
+ * appear as the actor on the audit trail, deleting would blank the "who" on those rows
+ * (`audit_logs.user_id` is `set null`), so they can only be deactivated.
+ */
+export async function deleteUser(id: string): Promise<DeleteUserResult> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
+    if (!row) return 'not-found';
+
+    const [audited] = await tx
+      .select({ id: auditLogs.id })
+      .from(auditLogs)
+      .where(eq(auditLogs.userId, id))
+      .limit(1);
+    if (audited) return 'has-audit-history';
+
+    await tx.delete(users).where(eq(users.id, id));
+    return 'deleted';
+  });
 }

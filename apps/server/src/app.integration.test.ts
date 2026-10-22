@@ -159,6 +159,7 @@ describe('STAFF cannot reach manager/auditor-only routes', () => {
     expect(await request('GET', `/api/service-users/${SERVICE_USER}/report`, { token })).toBe(403);
     expect(await request('GET', '/api/audit-logs', { token })).toBe(403);
     expect(await request('GET', '/api/users', { token })).toBe(403);
+    expect(await request('DELETE', `/api/users/${SERVICE_USER}`, { token })).toBe(403);
     expect(await request('POST', '/api/service-users', { token, body: {} })).toBe(403);
     expect(await request('DELETE', `/api/service-users/${SERVICE_USER}`, { token })).toBe(403);
     expect(

@@ -14,3 +14,4 @@ const canManage = requireRole('MANAGER');
 userRouter.get('/', requireAuth, canManage, userController.list);
 userRouter.get('/:id', requireAuth, canManage, userController.getById);
 userRouter.put('/:id', requireAuth, canManage, userController.update);
+userRouter.delete('/:id', requireAuth, canManage, userController.remove);

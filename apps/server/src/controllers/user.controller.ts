@@ -40,3 +40,28 @@ export async function update(req: Request, res: Response): Promise<void> {
   }
   res.json(result.value);
 }
+
+/**
+ * DELETE /users/:id — permanently remove an account. A manager can't delete themselves
+ * (400), and anyone on the audit trail is kept (409) — deactivate them instead.
+ */
+export async function remove(req: Request, res: Response): Promise<void> {
+  const id = String(req.params.id);
+  if (id === req.user!.sub) {
+    res.status(400).json({ error: 'You cannot delete your own account' });
+    return;
+  }
+  const result = await userService.deleteUser(id);
+  if (result === 'not-found') {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+  if (result === 'has-audit-history') {
+    res.status(409).json({
+      error:
+        'This user has recorded changes in the audit trail, so their account must be kept. Deactivate them instead.',
+    });
+    return;
+  }
+  res.status(204).end();
+}

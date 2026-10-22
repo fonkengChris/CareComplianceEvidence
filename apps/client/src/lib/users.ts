@@ -27,3 +27,11 @@ export async function updateUser(id: string, input: UserUpdate): Promise<User> {
   const { data } = await api.put<User>(`/api/users/${id}`, input);
   return data;
 }
+
+/**
+ * Permanently delete a user (MANAGER). Rejects with the server's message when it's the
+ * caller's own account (400) or the user is on the audit trail (409 — deactivate instead).
+ */
+export async function deleteUser(id: string): Promise<void> {
+  await api.delete(`/api/users/${id}`);
+}

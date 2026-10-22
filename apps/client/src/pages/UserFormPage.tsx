@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
+import { PasswordInput } from '../components/ui/password-input';
 import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
 import { toErrorMessage } from '../lib/errors';
@@ -161,9 +162,8 @@ export default function UserFormPage() {
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="password">Password</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="new-password"
                 placeholder={isEdit ? 'Leave blank to keep current password' : undefined}
                 {...register('password')}

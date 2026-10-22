@@ -1,9 +1,10 @@
 import type { User } from '@care/shared';
-import { useQuery } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { Badge } from '../components/ui/badge';
-import { buttonVariants } from '../components/ui/button';
+import { Button, buttonVariants } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import {
   Table,
@@ -13,15 +14,36 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { fetchUsers } from '../lib/users';
+import { toErrorMessage } from '../lib/errors';
+import { deleteUser, fetchUsers } from '../lib/users';
 
 /**
  * Manager users-management list: a table of every account with its role and status,
- * plus a link to add a new user. MANAGER-only (route-guarded + server-enforced). This
- * is the manager/table pattern, not the mobile-card staff pattern.
+ * plus a link to add a new user and a delete button (confirmed first). The server refuses
+ * to delete your own account or anyone on the audit trail — those can only be deactivated.
+ * MANAGER-only (route-guarded + server-enforced). This is the manager/table pattern, not
+ * the mobile-card staff pattern.
  */
 export default function UsersPage() {
+  const { user: me } = useAuth();
   const { data, isLoading, isError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
+  const queryClient = useQueryClient();
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
+  function confirmDelete(user: User) {
+    if (
+      window.confirm(
+        `Permanently delete ${user.name}'s account? This cannot be undone. Users who have recorded changes can only be deactivated.`,
+      )
+    ) {
+      remove.mutate(user.id);
+    }
+  }
 
   return (
     <section className="flex flex-col gap-6">
@@ -48,6 +70,11 @@ export default function UsersPage() {
           Could not load users.
         </p>
       )}
+      {remove.isError && (
+        <p role="alert" className="text-sm font-medium text-destructive">
+          {toErrorMessage(remove.error, 'Could not delete the user.')}
+        </p>
+      )}
 
       {data && data.length === 0 && (
         <Card>
@@ -72,7 +99,13 @@ export default function UsersPage() {
               </TableHeader>
               <TableBody>
                 {data.map((u) => (
-                  <UserRow key={u.id} user={u} />
+                  <UserRow
+                    key={u.id}
+                    user={u}
+                    isSelf={u.id === me?.id}
+                    onDelete={confirmDelete}
+                    deleting={remove.isPending && remove.variables === u.id}
+                  />
                 ))}
               </TableBody>
             </Table>
@@ -83,7 +116,17 @@ export default function UsersPage() {
   );
 }
 
-function UserRow({ user }: { user: User }) {
+function UserRow({
+  user,
+  isSelf,
+  onDelete,
+  deleting,
+}: {
+  user: User;
+  isSelf: boolean;
+  onDelete: (user: User) => void;
+  deleting: boolean;
+}) {
   return (
     <TableRow>
       <TableCell className="font-medium">{user.name}</TableCell>
@@ -99,12 +142,28 @@ function UserRow({ user }: { user: User }) {
         )}
       </TableCell>
       <TableCell className="text-right">
-        <Link
-          to={`/users/${user.id}/edit`}
-          className={buttonVariants({ variant: 'outline', size: 'sm' })}
-        >
-          Edit
-        </Link>
+        <div className="flex justify-end gap-2">
+          <Link
+            to={`/users/${user.id}/edit`}
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
+            Edit
+          </Link>
+          {/* No delete on your own row — the server refuses it too. */}
+          {!isSelf && (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              aria-label={`Delete ${user.name}`}
+              disabled={deleting}
+              onClick={() => onDelete(user)}
+            >
+              <Trash2 />
+              Delete
+            </Button>
+          )}
+        </div>
       </TableCell>
     </TableRow>
   );
