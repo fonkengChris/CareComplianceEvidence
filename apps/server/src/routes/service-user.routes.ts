@@ -33,3 +33,4 @@ serviceUserRouter.patch(
   requireRole('MANAGER'),
   serviceUserController.setActive,
 );
+serviceUserRouter.delete('/:id', requireAuth, requireRole('MANAGER'), serviceUserController.remove);

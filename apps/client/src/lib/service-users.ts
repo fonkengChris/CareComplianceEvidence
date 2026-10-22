@@ -38,3 +38,11 @@ export async function setServiceUserActive(id: string, active: boolean): Promise
   const { data } = await api.patch<ServiceUser>(`/api/service-users/${id}/active`, { active });
   return data;
 }
+
+/**
+ * Permanently delete a service user (MANAGER). Rejects with the server's message (409) when
+ * they have week plans — those records are kept, so they can only be deactivated.
+ */
+export async function deleteServiceUser(id: string): Promise<void> {
+  await api.delete(`/api/service-users/${id}`);
+}

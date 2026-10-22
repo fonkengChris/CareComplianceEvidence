@@ -90,6 +90,7 @@ describe('AUDITOR is blocked (403) from every write route', () => {
     expect(
       await request('PATCH', `/api/service-users/${SERVICE_USER}/active`, { token, body: {} }),
     ).toBe(403);
+    expect(await request('DELETE', `/api/service-users/${SERVICE_USER}`, { token })).toBe(403);
     expect(await request('POST', '/api/week-plans', { token, body: {} })).toBe(403);
     expect(await request('PUT', `/api/week-plans/${PLAN}`, { token, body: {} })).toBe(403);
     expect(await request('POST', `/api/week-plans/${PLAN}/duplicate`, { token, body: {} })).toBe(
@@ -159,6 +160,10 @@ describe('STAFF cannot reach manager/auditor-only routes', () => {
     expect(await request('GET', '/api/audit-logs', { token })).toBe(403);
     expect(await request('GET', '/api/users', { token })).toBe(403);
     expect(await request('POST', '/api/service-users', { token, body: {} })).toBe(403);
+    expect(await request('DELETE', `/api/service-users/${SERVICE_USER}`, { token })).toBe(403);
+    expect(
+      await request('DELETE', '/api/homes/33333333-3333-4333-8333-333333333333', { token }),
+    ).toBe(403);
     expect(await request('PUT', '/api/compliance-settings', { token, body: {} })).toBe(403);
   });
 });

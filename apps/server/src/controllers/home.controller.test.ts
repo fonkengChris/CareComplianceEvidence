@@ -13,6 +13,7 @@ const serviceMock = {
   createHome: mock((): Promise<Home> => Promise.resolve(sample)),
   updateHome: mock((): Promise<Home | null> => Promise.resolve(null)),
   setHomeActive: mock((): Promise<Home | null> => Promise.resolve(null)),
+  deleteHome: mock((): Promise<boolean> => Promise.resolve(true)),
   listServiceUsersForHome: mock(() => Promise.resolve([])),
 };
 
@@ -50,6 +51,9 @@ function mockRes() {
       this.body = payload;
       return this;
     },
+    end() {
+      return this;
+    },
   };
   return res as unknown as Response & { statusCode: number; body: unknown };
 }
@@ -60,6 +64,7 @@ afterEach(() => {
   serviceMock.createHome.mockReset();
   serviceMock.updateHome.mockReset();
   serviceMock.setHomeActive.mockReset();
+  serviceMock.deleteHome.mockReset();
   serviceMock.listServiceUsersForHome.mockReset();
   homeAssignmentMock.listHomesForStaff.mockReset();
 });
@@ -210,5 +215,24 @@ describe('setActive', () => {
     );
     expect(serviceMock.setHomeActive).toHaveBeenCalledWith(sample.id, false);
     expect(res.body).toEqual(deactivated);
+  });
+});
+
+describe('remove', () => {
+  const req = { params: { id: sample.id } } as unknown as Request;
+
+  it('204s when the home is deleted', async () => {
+    serviceMock.deleteHome.mockResolvedValueOnce(true);
+    const res = mockRes();
+    await controller.remove(req, res);
+    expect(serviceMock.deleteHome).toHaveBeenCalledWith(sample.id);
+    expect(res.statusCode).toBe(204);
+  });
+
+  it('404s when the home does not exist', async () => {
+    serviceMock.deleteHome.mockResolvedValueOnce(false);
+    const res = mockRes();
+    await controller.remove(req, res);
+    expect(res.statusCode).toBe(404);
   });
 });

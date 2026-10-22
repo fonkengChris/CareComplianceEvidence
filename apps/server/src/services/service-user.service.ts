@@ -6,14 +6,15 @@ import {
 } from '@care/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
-import { serviceUsers } from '../db/schema';
+import { serviceUsers, weekPlans } from '../db/schema';
 import { buildFieldChanges, recordAudit } from './audit.service';
 
 /**
  * Service-user service — the only layer that touches the DB for service users
  * (CLAUDE.md layering). Controllers call these; routes never query Drizzle directly.
- * Managers deactivate rather than delete (soft delete), preserving week-plan and
- * audit history, so there is no hard-delete path here.
+ * Managers normally deactivate (soft delete). A hard delete exists for records created
+ * in error, but only while the service user has no week plans — once support has been
+ * planned/recorded the history must survive, so those can only be deactivated.
  */
 
 type ServiceUserRow = typeof serviceUsers.$inferSelect;
@@ -128,4 +129,43 @@ export async function setServiceUserActive(
   actorUserId: string,
 ): Promise<ServiceUser | null> {
   return updateServiceUser(id, { active }, actorUserId);
+}
+
+export type DeleteServiceUserResult = 'deleted' | 'not-found' | 'has-week-plans';
+
+/**
+ * Permanently delete a service user that has no week plans. Their template, staff
+ * assignments and auditor access requests go with them (FK cascades); week plans are
+ * `restrict`, so the DB also refuses if one appears mid-flight. The deletion itself is
+ * appended to the audit trail (the row keeps the name, since the entity label is gone).
+ */
+export async function deleteServiceUser(
+  id: string,
+  actorUserId: string,
+): Promise<DeleteServiceUserResult> {
+  return db.transaction(async (tx) => {
+    const [before] = await tx.select().from(serviceUsers).where(eq(serviceUsers.id, id)).limit(1);
+    if (!before) return 'not-found';
+
+    const [plan] = await tx
+      .select({ id: weekPlans.id })
+      .from(weekPlans)
+      .where(eq(weekPlans.serviceUserId, id))
+      .limit(1);
+    if (plan) return 'has-week-plans';
+
+    await tx.delete(serviceUsers).where(eq(serviceUsers.id, id));
+    await recordAudit(tx, [
+      {
+        userId: actorUserId,
+        action: 'DELETE',
+        entityType: 'SERVICE_USER',
+        entityId: id,
+        field: 'name',
+        fromValue: before.name,
+        toValue: null,
+      },
+    ]);
+    return 'deleted';
+  });
 }

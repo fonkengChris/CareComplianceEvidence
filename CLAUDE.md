@@ -117,6 +117,7 @@ bun run db:generate   # generate a versioned SQL migration from schema.ts
 bun run db:migrate    # apply committed migrations (auditable; preferred over db:push)
 bun run db:create-admin # create admin (random pw, printed once) + activities/compliance defaults (idempotent)
 bun run db:seed-staff   # create staff logins from root staff-credentials.ods (random pw each, printed once; idempotent)
+bun run db:seed-homes   # create homes from root homes.csv (name + one-line address + active; skips existing names)
 ```
 
 Migration workflow is **generate → migrate → create-admin** (versioned SQL, not `db:push`) for an

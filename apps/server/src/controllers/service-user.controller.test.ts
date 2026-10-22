@@ -14,6 +14,9 @@ const serviceMock = {
   createServiceUser: mock((): Promise<ServiceUser> => Promise.resolve(sample)),
   updateServiceUser: mock((): Promise<ServiceUser | null> => Promise.resolve(null)),
   setServiceUserActive: mock((): Promise<ServiceUser | null> => Promise.resolve(null)),
+  deleteServiceUser: mock((): Promise<'deleted' | 'not-found' | 'has-week-plans'> =>
+    Promise.resolve('deleted'),
+  ),
 };
 
 // Full surface of the module, so other files importing it under this mock don't hit undefined.
@@ -61,6 +64,9 @@ function mockRes() {
       this.body = payload;
       return this;
     },
+    end() {
+      return this;
+    },
   };
   return res as unknown as Response & { statusCode: number; body: unknown };
 }
@@ -71,6 +77,7 @@ afterEach(() => {
   serviceMock.createServiceUser.mockReset();
   serviceMock.updateServiceUser.mockReset();
   serviceMock.setServiceUserActive.mockReset();
+  serviceMock.deleteServiceUser.mockReset();
   assignmentMock.listAssignmentsForStaff.mockReset();
   assignmentMock.isStaffAssigned.mockReset();
 });
@@ -275,5 +282,32 @@ describe('setActive', () => {
       managerUser.sub,
     );
     expect(res.body).toEqual(deactivated);
+  });
+});
+
+describe('remove', () => {
+  const req = { params: { id: sample.id }, user: managerUser } as unknown as Request;
+
+  it('204s and passes the actor through for the audit trail', async () => {
+    serviceMock.deleteServiceUser.mockResolvedValueOnce('deleted');
+    const res = mockRes();
+    await controller.remove(req, res);
+    expect(serviceMock.deleteServiceUser).toHaveBeenCalledWith(sample.id, managerUser.sub);
+    expect(res.statusCode).toBe(204);
+  });
+
+  it('404s when the service user does not exist', async () => {
+    serviceMock.deleteServiceUser.mockResolvedValueOnce('not-found');
+    const res = mockRes();
+    await controller.remove(req, res);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('409s when the service user has week plans', async () => {
+    serviceMock.deleteServiceUser.mockResolvedValueOnce('has-week-plans');
+    const res = mockRes();
+    await controller.remove(req, res);
+    expect(res.statusCode).toBe(409);
+    expect((res.body as { error: string }).error).toContain('Deactivate');
   });
 });

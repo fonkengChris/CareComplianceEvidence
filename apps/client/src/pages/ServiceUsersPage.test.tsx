@@ -28,11 +28,24 @@ const rows = [
 ];
 
 let requestedUrls: string[] = [];
+let deleteStatus = 204;
+const deleted: string[] = [];
 
 function mockList(role: Role = 'MANAGER') {
   requestedUrls = [];
-  mockApi(async (url) => {
+  deleted.length = 0;
+  deleteStatus = 204;
+  mockApi(async (url, init) => {
     requestedUrls.push(url);
+    if (init.method === 'DELETE') {
+      deleted.push(url);
+      return deleteStatus === 204
+        ? new Response(null, { status: 204 })
+        : new Response(JSON.stringify({ error: 'Deactivate them instead.' }), {
+            status: deleteStatus,
+            headers: { 'content-type': 'application/json' },
+          });
+    }
     if (url === '/api/auth/refresh') {
       return new Response(
         JSON.stringify({
@@ -79,7 +92,10 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  window.confirm = originalConfirm;
 });
+
+const originalConfirm = window.confirm;
 
 describe('ServiceUsersPage', () => {
   it('renders rows returned from the API', async () => {
@@ -107,5 +123,36 @@ describe('ServiceUsersPage', () => {
     mockList('MANAGER');
     renderPage();
     expect(await screen.findByRole('link', { name: 'New service user' })).toBeDefined();
+  });
+
+  it('deletes a service user after the manager confirms', async () => {
+    window.confirm = () => true;
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Ada Lovelace' }));
+    await waitFor(() => {
+      expect(deleted).toEqual([`/api/service-users/${rows[0].id}`]);
+    });
+  });
+
+  it('does not delete when the confirmation is cancelled', async () => {
+    window.confirm = () => false;
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Ada Lovelace' }));
+    expect(deleted).toEqual([]);
+  });
+
+  it("shows the server's reason when the delete is refused", async () => {
+    window.confirm = () => true;
+    deleteStatus = 409;
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Ada Lovelace' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Deactivate them instead.');
+  });
+
+  it('hides the delete button from non-managers', async () => {
+    mockList('STAFF');
+    renderPage();
+    await screen.findByText('Ada Lovelace');
+    expect(screen.queryByRole('button', { name: 'Delete Ada Lovelace' })).toBeNull();
   });
 });

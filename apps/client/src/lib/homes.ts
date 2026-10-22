@@ -39,3 +39,8 @@ export async function setHomeActive(id: string, active: boolean): Promise<Home> 
   const { data } = await api.patch<Home>(`/api/homes/${id}/active`, { active });
   return data;
 }
+
+/** Permanently delete a home (MANAGER). Its service users are kept, without a home. */
+export async function deleteHome(id: string): Promise<void> {
+  await api.delete(`/api/homes/${id}`);
+}

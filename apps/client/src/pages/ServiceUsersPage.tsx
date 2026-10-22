@@ -1,6 +1,6 @@
 import type { ServiceUser } from '@care/shared';
-import { useQuery } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -15,13 +15,15 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { type ActiveFilter, fetchServiceUsers } from '../lib/service-users';
+import { toErrorMessage } from '../lib/errors';
+import { type ActiveFilter, deleteServiceUser, fetchServiceUsers } from '../lib/service-users';
 
 /**
  * Service user list: a table (manager pattern, not mobile cards) with an
  * active/inactive/all filter. Rows link through to the detail view. Managers also get
- * a link to create; auditors see the list read-only. The filter is part of the query
- * key so switching it refetches.
+ * a link to create and a delete button (confirmed first; the server refuses once the
+ * service user has week plans — those can only be deactivated). The filter is part of the
+ * query key so switching it refetches.
  */
 
 const FILTERS: { value: ActiveFilter; label: string }[] = [
@@ -38,6 +40,23 @@ export default function ServiceUsersPage() {
     queryKey: ['service-users', filter],
     queryFn: () => fetchServiceUsers(filter),
   });
+  const queryClient = useQueryClient();
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteServiceUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service-users'] });
+    },
+  });
+
+  function confirmDelete(serviceUser: ServiceUser) {
+    if (
+      window.confirm(
+        `Permanently delete ${serviceUser.name}? This cannot be undone. Service users with week plans can only be deactivated.`,
+      )
+    ) {
+      remove.mutate(serviceUser.id);
+    }
+  }
 
   return (
     <section className="flex flex-col gap-6">
@@ -81,6 +100,11 @@ export default function ServiceUsersPage() {
           Could not load service users.
         </p>
       )}
+      {remove.isError && (
+        <p role="alert" className="text-sm font-medium text-destructive">
+          {toErrorMessage(remove.error, 'Could not delete the service user.')}
+        </p>
+      )}
 
       {data && data.length === 0 && (
         <Card>
@@ -105,7 +129,13 @@ export default function ServiceUsersPage() {
               </TableHeader>
               <TableBody>
                 {data.map((su) => (
-                  <ServiceUserRow key={su.id} serviceUser={su} isManager={isManager} />
+                  <ServiceUserRow
+                    key={su.id}
+                    serviceUser={su}
+                    isManager={isManager}
+                    onDelete={confirmDelete}
+                    deleting={remove.isPending && remove.variables === su.id}
+                  />
                 ))}
               </TableBody>
             </Table>
@@ -119,9 +149,13 @@ export default function ServiceUsersPage() {
 function ServiceUserRow({
   serviceUser,
   isManager,
+  onDelete,
+  deleting,
 }: {
   serviceUser: ServiceUser;
   isManager: boolean;
+  onDelete: (serviceUser: ServiceUser) => void;
+  deleting: boolean;
 }) {
   return (
     <TableRow>
@@ -144,12 +178,25 @@ function ServiceUserRow({
       </TableCell>
       {isManager && (
         <TableCell className="text-right">
-          <Link
-            to={`/service-users/${serviceUser.id}/edit`}
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-          >
-            Edit
-          </Link>
+          <div className="flex justify-end gap-2">
+            <Link
+              to={`/service-users/${serviceUser.id}/edit`}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              Edit
+            </Link>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              aria-label={`Delete ${serviceUser.name}`}
+              disabled={deleting}
+              onClick={() => onDelete(serviceUser)}
+            >
+              <Trash2 />
+              Delete
+            </Button>
+          </div>
         </TableCell>
       )}
     </TableRow>

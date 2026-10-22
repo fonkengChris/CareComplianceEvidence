@@ -1,6 +1,6 @@
 import type { Home } from '@care/shared';
-import { useQuery } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -15,13 +15,14 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { type ActiveFilter, fetchHomes } from '../lib/homes';
+import { toErrorMessage } from '../lib/errors';
+import { type ActiveFilter, deleteHome, fetchHomes } from '../lib/homes';
 
 /**
  * Home list: the residences/groups service users belong to. Managers can create and
- * open each home to manage its service users and assigned staff; auditors browse
- * read-only. The active/inactive/all filter is part of the query key so switching
- * refetches.
+ * open each home to manage its service users and assigned staff, and delete a home
+ * (confirmed first; its service users are kept, without a home). Others browse read-only.
+ * The active/inactive/all filter is part of the query key so switching refetches.
  */
 
 const FILTERS: { value: ActiveFilter; label: string }[] = [
@@ -38,6 +39,25 @@ export default function HomesPage() {
     queryKey: ['homes', filter],
     queryFn: () => fetchHomes(filter),
   });
+  const queryClient = useQueryClient();
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteHome(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['homes'] });
+      // Its service users now have no home.
+      queryClient.invalidateQueries({ queryKey: ['service-users'] });
+    },
+  });
+
+  function confirmDelete(home: Home) {
+    if (
+      window.confirm(
+        `Permanently delete ${home.name}? This cannot be undone. Its service users will be kept but left without a home, and staff assigned to it lose that access.`,
+      )
+    ) {
+      remove.mutate(home.id);
+    }
+  }
 
   return (
     <section className="flex flex-col gap-6">
@@ -81,10 +101,17 @@ export default function HomesPage() {
           Could not load homes.
         </p>
       )}
+      {remove.isError && (
+        <p role="alert" className="text-sm font-medium text-destructive">
+          {toErrorMessage(remove.error, 'Could not delete the home.')}
+        </p>
+      )}
 
       {data && data.length === 0 && (
         <Card>
-          <CardContent className="p-10 text-center text-muted-foreground">No homes found.</CardContent>
+          <CardContent className="p-10 text-center text-muted-foreground">
+            No homes found.
+          </CardContent>
         </Card>
       )}
 
@@ -97,11 +124,18 @@ export default function HomesPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Address</TableHead>
                   <TableHead>Status</TableHead>
+                  {isManager && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.map((home) => (
-                  <HomeRow key={home.id} home={home} />
+                  <HomeRow
+                    key={home.id}
+                    home={home}
+                    isManager={isManager}
+                    onDelete={confirmDelete}
+                    deleting={remove.isPending && remove.variables === home.id}
+                  />
                 ))}
               </TableBody>
             </Table>
@@ -112,7 +146,17 @@ export default function HomesPage() {
   );
 }
 
-function HomeRow({ home }: { home: Home }) {
+function HomeRow({
+  home,
+  isManager,
+  onDelete,
+  deleting,
+}: {
+  home: Home;
+  isManager: boolean;
+  onDelete: (home: Home) => void;
+  deleting: boolean;
+}) {
   return (
     <TableRow>
       <TableCell>
@@ -128,6 +172,21 @@ function HomeRow({ home }: { home: Home }) {
           <Badge variant="secondary">Inactive</Badge>
         )}
       </TableCell>
+      {isManager && (
+        <TableCell className="text-right">
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            aria-label={`Delete ${home.name}`}
+            disabled={deleting}
+            onClick={() => onDelete(home)}
+          >
+            <Trash2 />
+            Delete
+          </Button>
+        </TableCell>
+      )}
     </TableRow>
   );
 }

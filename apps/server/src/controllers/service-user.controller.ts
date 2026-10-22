@@ -92,3 +92,23 @@ export async function setActive(req: Request, res: Response): Promise<void> {
   }
   res.json(updated);
 }
+
+/**
+ * DELETE /:id — permanently remove a service user. 409 once they have week plans: that
+ * history must be kept, so they can only be deactivated.
+ */
+export async function remove(req: Request, res: Response): Promise<void> {
+  const result = await serviceUserService.deleteServiceUser(String(req.params.id), req.user!.sub);
+  if (result === 'not-found') {
+    res.status(404).json({ error: 'Service user not found' });
+    return;
+  }
+  if (result === 'has-week-plans') {
+    res.status(409).json({
+      error:
+        'This service user has week plans, so their records must be kept. Deactivate them instead.',
+    });
+    return;
+  }
+  res.status(204).end();
+}

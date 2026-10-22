@@ -11,6 +11,8 @@
     "db:migrate": "bun run src/db/migrate.ts",
     "db:create-admin": "bun run src/db/create-admin.ts",
     "db:seed-staff": "bun run src/db/seed-staff.ts",
+    "db:seed-homes": "bun run src/db/seed-homes.ts",
+    "db:seed-service-users": "bun run src/db/seed-service-users.ts",
     "db:mock": "bun run src/db/mock.ts",
     "db:push": "drizzle-kit push"
   },

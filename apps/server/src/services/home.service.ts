@@ -13,8 +13,9 @@ import { toPublicServiceUser } from './service-user.service';
 /**
  * Home service — the only layer that touches the DB for homes (CLAUDE.md layering).
  * A home groups service users; staff assigned to a home reach every service user in
- * it. Managers soft-delete (deactivate) rather than hard delete, preserving the
- * `service_users.home_id` history, so there is no hard-delete path here.
+ * it. Managers normally soft-delete (deactivate). A hard delete is also available: the home's
+ * service users stay but are left without a home (`home_id` → null), and its staff
+ * assignments are removed (FK cascades).
  */
 
 type HomeRow = typeof homes.$inferSelect;
@@ -83,4 +84,10 @@ export async function listServiceUsersForHome(homeId: string): Promise<ServiceUs
     .where(and(eq(serviceUsers.homeId, homeId), eq(serviceUsers.active, true)))
     .orderBy(asc(serviceUsers.name));
   return rows.map(toPublicServiceUser);
+}
+
+/** Permanently delete a home. Returns false when no row matches the id. */
+export async function deleteHome(id: string): Promise<boolean> {
+  const rows = await db.delete(homes).where(eq(homes.id, id)).returning({ id: homes.id });
+  return rows.length > 0;
 }

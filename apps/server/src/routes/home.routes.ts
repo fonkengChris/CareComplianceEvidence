@@ -20,3 +20,4 @@ homeRouter.get('/:id/service-users', requireAuth, canRead, homeController.listSe
 homeRouter.post('/', requireAuth, canManage, homeController.create);
 homeRouter.put('/:id', requireAuth, canManage, homeController.update);
 homeRouter.patch('/:id/active', requireAuth, canManage, homeController.setActive);
+homeRouter.delete('/:id', requireAuth, canManage, homeController.remove);

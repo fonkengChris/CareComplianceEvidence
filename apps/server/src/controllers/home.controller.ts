@@ -94,3 +94,12 @@ export async function setActive(req: Request, res: Response): Promise<void> {
   }
   res.json(updated);
 }
+
+/** DELETE /:id — permanently remove a home; its service users are kept, without a home. */
+export async function remove(req: Request, res: Response): Promise<void> {
+  if (!(await homeService.deleteHome(String(req.params.id)))) {
+    res.status(404).json({ error: 'Home not found' });
+    return;
+  }
+  res.status(204).end();
+}
