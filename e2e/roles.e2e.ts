@@ -18,8 +18,8 @@ test('auditor: Reports only, bounced from every other route', async ({ page }) =
     await expect(page.getByRole('link', { name: hidden, exact: true })).toHaveCount(0);
   }
 
-  // The access-request panel is how an auditor asks to audit a service user.
-  await expect(page.getByRole('form', { name: 'Request audit access' })).toBeVisible();
+  // No way to browse or request other service users (GDPR): a manager assigns them.
+  await expect(page.getByRole('form', { name: 'Request audit access' })).toHaveCount(0);
 
   // Any other section bounces back to Reports.
   for (const path of ['/service-users', '/audit', '/users']) {

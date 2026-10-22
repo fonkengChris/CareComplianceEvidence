@@ -1,17 +1,20 @@
 import { ROLES, roleSchema, userCreateSchema } from '@care/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { z } from 'zod';
+import AuditServiceUsersPicker from '../components/AuditServiceUsersPicker';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { PasswordInput } from '../components/ui/password-input';
 import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
+import { fetchAuditorServiceUsers, setAuditorServiceUsers } from '../lib/auditor-access';
 import { toErrorMessage } from '../lib/errors';
+import { fetchServiceUsers } from '../lib/service-users';
 import { createUser, fetchUser, updateUser } from '../lib/users';
 
 /**
@@ -20,6 +23,10 @@ import { createUser, fetchUser, updateUser } from '../lib/users';
  * Edit mode loads the existing account and lets an admin change name/email/role and
  * toggle active; the password field is optional — blank leaves it unchanged — and an
  * `active: false` deactivation revokes the user's sessions server-side.
+ *
+ * For an AUDITOR the admin must also pick the service users they will audit (GDPR: an auditor
+ * can never browse service users, so access is granted here). The selection is saved to
+ * /api/auditor-access after the account itself; switching an auditor to another role clears it.
  */
 
 // Edit-mode schema: password optional (blank = keep current), plus an active toggle.
@@ -44,6 +51,7 @@ export default function UserFormPage() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(isEdit ? editSchema : userCreateSchema) as never,
@@ -56,6 +64,28 @@ export default function UserFormPage() {
     queryFn: () => fetchUser(id!),
     enabled: isEdit,
   });
+
+  const role = watch('role');
+  const isAuditor = role === 'AUDITOR';
+  const wasAuditor = existing.data?.role === 'AUDITOR';
+
+  // Service users to choose from (manager-only endpoint), loaded only when relevant.
+  const serviceUsers = useQuery({
+    queryKey: ['service-users', 'all'],
+    queryFn: () => fetchServiceUsers('all'),
+    enabled: isAuditor,
+  });
+  // An existing auditor's current assignments seed the picker once.
+  const assigned = useQuery({
+    queryKey: ['auditor-access', id],
+    queryFn: () => fetchAuditorServiceUsers(id!),
+    enabled: isEdit && wasAuditor,
+  });
+  const [auditIds, setAuditIds] = useState<string[]>([]);
+  const [auditError, setAuditError] = useState(false);
+  useEffect(() => {
+    if (assigned.data) setAuditIds(assigned.data);
+  }, [assigned.data]);
 
   useEffect(() => {
     if (existing.data) {
@@ -70,8 +100,11 @@ export default function UserFormPage() {
   }, [existing.data, reset]);
 
   const mutation = useMutation({
-    mutationFn: (values: FormValues) => {
+    mutationFn: async (values: FormValues) => {
+      const auditing = values.role === 'AUDITOR';
       if (isEdit) {
+        // Leaving the auditor role: revoke their grants while they are still an auditor.
+        if (wasAuditor && !auditing) await setAuditorServiceUsers(id!, []);
         // Only send the password when the admin typed a new one.
         const payload = {
           name: values.name,
@@ -80,7 +113,9 @@ export default function UserFormPage() {
           active: values.active,
           ...(values.password ? { password: values.password } : {}),
         };
-        return updateUser(id!, payload);
+        await updateUser(id!, payload);
+        if (auditing) await setAuditorServiceUsers(id!, auditIds);
+        return;
       }
       const create: CreateValues = {
         name: values.name,
@@ -88,15 +123,35 @@ export default function UserFormPage() {
         role: values.role,
         password: values.password,
       };
-      return createUser(create);
+      const user = await createUser(create);
+      if (auditing) {
+        try {
+          await setAuditorServiceUsers(user.id, auditIds);
+        } catch (err) {
+          throw new Error(
+            `The account was created, but its service users could not be saved (${toErrorMessage(err)}). Edit the user to try again.`,
+          );
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['auditor-access'] });
       navigate('/users', { replace: true });
     },
   });
 
-  if (isEdit && existing.isLoading) {
+  // An auditor must be assigned at least one service user to audit.
+  function onValid(values: FormValues) {
+    if (values.role === 'AUDITOR' && auditIds.length === 0) {
+      setAuditError(true);
+      return;
+    }
+    setAuditError(false);
+    mutation.mutate(values);
+  }
+
+  if (isEdit && (existing.isLoading || assigned.isLoading)) {
     return (
       <p role="status" className="text-muted-foreground">
         Loading…
@@ -106,7 +161,9 @@ export default function UserFormPage() {
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">{isEdit ? 'Edit user' : 'Add new user'}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        {isEdit ? 'Edit user' : 'Add new user'}
+      </h1>
 
       <Card>
         <CardHeader>
@@ -114,7 +171,7 @@ export default function UserFormPage() {
         </CardHeader>
         <CardContent>
           <form
-            onSubmit={handleSubmit((values) => mutation.mutate(values))}
+            onSubmit={handleSubmit(onValid)}
             className="flex flex-col gap-4"
             aria-label={isEdit ? 'Edit user' : 'Add new user'}
           >
@@ -160,6 +217,42 @@ export default function UserFormPage() {
               )}
             </div>
 
+            {isAuditor && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="audit-service-users">Service users to audit</Label>
+                {serviceUsers.isLoading && (
+                  <p role="status" className="text-sm text-muted-foreground">
+                    Loading service users…
+                  </p>
+                )}
+                {serviceUsers.isError && (
+                  <p role="alert" className="text-sm text-destructive">
+                    Could not load service users.
+                  </p>
+                )}
+                {serviceUsers.data && (
+                  <AuditServiceUsersPicker
+                    id="audit-service-users"
+                    serviceUsers={serviceUsers.data}
+                    selected={auditIds}
+                    onChange={(ids) => {
+                      setAuditIds(ids);
+                      if (ids.length > 0) setAuditError(false);
+                    }}
+                    invalid={auditError}
+                  />
+                )}
+                <span className="text-xs text-muted-foreground">
+                  The auditor will only see reports for these service users.
+                </span>
+                {auditError && (
+                  <span role="alert" className="text-sm text-destructive">
+                    Select at least one service user for this auditor.
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="password">Password</Label>
               <PasswordInput
@@ -177,7 +270,11 @@ export default function UserFormPage() {
 
             {isEdit && (
               <label className="flex items-center gap-2 text-sm font-medium">
-                <input type="checkbox" className="size-4 rounded border-input" {...register('active')} />
+                <input
+                  type="checkbox"
+                  className="size-4 rounded border-input"
+                  {...register('active')}
+                />
                 Active
               </label>
             )}

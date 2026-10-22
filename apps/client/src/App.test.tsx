@@ -93,9 +93,6 @@ describe('App routing', () => {
           weekCount: 1,
         });
       }
-      if (url === '/api/auditor-access/service-users' || url === '/api/auditor-access/me') {
-        return jsonResponse([]);
-      }
       return new Response(null, { status: 404 });
     });
 

@@ -2,7 +2,6 @@ import type { PeriodReport } from '@care/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import AuditorAccessCard from '../components/AuditorAccessCard';
 import ComplianceBadge from '../components/ComplianceBadge';
 import ComplianceThresholdsCard from '../components/ComplianceThresholdsCard';
 import ExportPeriodReportButton from '../components/ExportPeriodReportButton';
@@ -26,8 +25,8 @@ import { PERIOD_PRESETS, type PeriodPreset, presetLabel, presetRange } from '../
  * breakdown, and the full staff-recorded notes for the period, from which a manager downloads a
  * one-file commissioner PDF. Every figure is backend-owned (CLAUDE.md); the page only displays
  * what /api/summary/period returns. Managers additionally tune the 🟢/🟡/🔴 thresholds below.
- * Auditors see only the service users a manager approved them to audit (server-scoped), plus a
- * panel to request access to more. Key workers see only their own caseload (server-scoped).
+ * Auditors see only the service users a manager assigned them to audit (server-scoped; they
+ * can't browse any others). Key workers see only their own caseload (server-scoped).
  */
 
 /** Remaining hours as text, flagging an overspend the way the PDF does. */
@@ -143,7 +142,7 @@ export default function ReportsPage() {
         <Card>
           <CardContent className="p-10 text-center text-muted-foreground">
             {isAuditor
-              ? 'No approved service users yet — request access below.'
+              ? 'No service users have been assigned to you for audit yet — please contact your manager.'
               : isKeyWorker
                 ? 'No service users are assigned to you yet.'
                 : 'No active service users to report on.'}
@@ -154,12 +153,6 @@ export default function ReportsPage() {
       {rows.map((report) => (
         <ServiceUserReportCard key={report.serviceUser.id} report={report} />
       ))}
-
-      {isAuditor && (
-        <div className="mt-2 border-t border-border pt-6">
-          <AuditorAccessCard />
-        </div>
-      )}
 
       {isManager && (
         <div className="mt-2 flex flex-col gap-6 border-t border-border pt-6">

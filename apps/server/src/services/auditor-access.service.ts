@@ -1,204 +1,141 @@
-import {
-  type AccessRequest,
-  type AccessRequestStatus,
-  type RequestableServiceUser,
-  accessRequestSchema,
-} from '@care/shared';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '../db';
-import { auditorAccessRequests, homes, serviceUsers, users } from '../db/schema';
-import { recordAudit } from './audit.service';
+import { auditorAccessRequests, serviceUsers, users } from '../db/schema';
+import { type AuditWrite, recordAudit } from './audit.service';
 
 /**
- * Auditor-access service — the only layer that touches `auditor_access_requests`. An AUDITOR
- * names the service users they intend to audit; a MANAGER approves or rejects each request and
- * may later revoke a grant. Only APPROVED rows scope the auditor's reports (see
- * `approvedServiceUserIds` / `isAuditorApproved`, used by the report controller). Every decision
- * is also appended to the audit trail, atomically with the status change.
+ * Auditor-access service — the only layer that touches `auditor_access_requests`. A MANAGER sets
+ * the service users an AUDITOR may audit (from the auditor's user form); each is an APPROVED row.
+ * Only APPROVED rows scope the auditor's reports (`approvedServiceUserIds` / `isAuditorApproved`,
+ * used by the report controller). The auditor never lists service users themselves (GDPR).
+ * Every grant and revoke is appended to the audit trail, atomically with the change.
  */
 
-/** A manager's (or the auditor's own) action on a request. */
-export type AccessAction = 'APPROVE' | 'REJECT' | 'REVOKE' | 'WITHDRAW';
+/** Pure diff of the current grant set against the wanted one. */
+export function diffGrants(
+  current: readonly string[],
+  wanted: readonly string[],
+): { add: string[]; remove: string[] } {
+  const have = new Set(current);
+  const want = new Set(wanted);
+  return {
+    add: [...want].filter((id) => !have.has(id)),
+    remove: [...have].filter((id) => !want.has(id)),
+  };
+}
+
+export type SetGrantsResult = 'ok' | 'not_found' | 'not_auditor';
 
 /**
- * Pure transition table: the status a request moves to under an action, or null when the action
- * is not allowed from the current status. Only a PENDING request can be approved, rejected or
- * withdrawn; only an APPROVED grant can be revoked. Withdrawn requests read as REJECTED history.
+ * Replace the set of service users an auditor may audit. New ids become APPROVED grants (an
+ * existing PENDING row left over from the old request flow is promoted rather than duplicated);
+ * dropped ids are REVOKED; any other leftover PENDING rows for the auditor are closed as
+ * REJECTED. Unknown service-user ids are ignored. Only AUDITOR accounts can hold grants.
  */
-export function nextStatus(
-  current: AccessRequestStatus,
-  action: AccessAction,
-): AccessRequestStatus | null {
-  if (current === 'PENDING') {
-    if (action === 'APPROVE') return 'APPROVED';
-    if (action === 'REJECT' || action === 'WITHDRAW') return 'REJECTED';
-  }
-  if (current === 'APPROVED' && action === 'REVOKE') return 'REVOKED';
-  return null;
-}
+export async function setAuditorServiceUsers(
+  auditorId: string,
+  serviceUserIds: readonly string[],
+  actorId: string,
+): Promise<SetGrantsResult> {
+  return db.transaction(async (tx) => {
+    const [target] = await tx
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, auditorId))
+      .limit(1);
+    if (!target) return 'not_found';
+    if (target.role !== 'AUDITOR') return 'not_auditor';
 
-const decidedBy = alias(users, 'decided_by');
+    const wanted = serviceUserIds.length
+      ? (
+          await tx
+            .select({ id: serviceUsers.id })
+            .from(serviceUsers)
+            .where(inArray(serviceUsers.id, [...new Set(serviceUserIds)]))
+        ).map((r) => r.id)
+      : [];
 
-type JoinedRow = {
-  request: typeof auditorAccessRequests.$inferSelect;
-  auditorName: string;
-  serviceUserName: string;
-  decidedByName: string | null;
-};
-
-/** Map a joined row to the public shared shape (ISO dates). */
-export function toPublicAccessRequest(row: JoinedRow): AccessRequest {
-  const r = row.request;
-  return accessRequestSchema.parse({
-    id: r.id,
-    auditorId: r.auditorId,
-    auditorName: row.auditorName,
-    serviceUserId: r.serviceUserId,
-    serviceUserName: row.serviceUserName,
-    status: r.status,
-    reason: r.reason,
-    requestedAt: r.requestedAt.toISOString(),
-    decidedById: r.decidedById,
-    decidedByName: row.decidedByName,
-    decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
-  });
-}
-
-function selectJoined() {
-  return db
-    .select({
-      request: auditorAccessRequests,
-      auditorName: users.name,
-      serviceUserName: serviceUsers.name,
-      decidedByName: decidedBy.name,
-    })
-    .from(auditorAccessRequests)
-    .innerJoin(users, eq(users.id, auditorAccessRequests.auditorId))
-    .innerJoin(serviceUsers, eq(serviceUsers.id, auditorAccessRequests.serviceUserId))
-    .leftJoin(decidedBy, eq(decidedBy.id, auditorAccessRequests.decidedById));
-}
-
-const OPEN_STATUSES: AccessRequestStatus[] = ['PENDING', 'APPROVED'];
-
-/**
- * Active service users the auditor can pick from — identity only (name + home), plus the
- * auditor's open status for each (PENDING/APPROVED) or null when it can be requested.
- */
-export async function listRequestable(auditorId: string): Promise<RequestableServiceUser[]> {
-  const [rows, open] = await Promise.all([
-    db
-      .select({ id: serviceUsers.id, name: serviceUsers.name, homeName: homes.name })
-      .from(serviceUsers)
-      .leftJoin(homes, eq(homes.id, serviceUsers.homeId))
-      .where(eq(serviceUsers.active, true))
-      .orderBy(asc(serviceUsers.name)),
-    db
-      .select({
-        serviceUserId: auditorAccessRequests.serviceUserId,
-        status: auditorAccessRequests.status,
-      })
+    const open = await tx
+      .select()
       .from(auditorAccessRequests)
       .where(
         and(
           eq(auditorAccessRequests.auditorId, auditorId),
-          inArray(auditorAccessRequests.status, OPEN_STATUSES),
+          inArray(auditorAccessRequests.status, ['PENDING', 'APPROVED']),
         ),
-      ),
-  ]);
-  const statusById = new Map(open.map((o) => [o.serviceUserId, o.status]));
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    homeName: r.homeName ?? null,
-    status: statusById.get(r.id) ?? null,
-  }));
-}
+      );
+    const approved = open.filter((r) => r.status === 'APPROVED');
+    const pendingBySu = new Map(
+      open.filter((r) => r.status === 'PENDING').map((r) => [r.serviceUserId, r]),
+    );
+    const { add, remove } = diffGrants(
+      approved.map((r) => r.serviceUserId),
+      wanted,
+    );
 
-/**
- * Open PENDING requests for each named active service user. Pairs that already have an open
- * (pending or approved) row are skipped by the partial unique index, so re-requesting is a
- * no-op. Returns how many new requests were created.
- */
-export async function createRequests(
-  auditorId: string,
-  serviceUserIds: string[],
-  reason: string | undefined,
-): Promise<number> {
-  const unique = [...new Set(serviceUserIds)];
-  const active = await db
-    .select({ id: serviceUsers.id })
-    .from(serviceUsers)
-    .where(and(inArray(serviceUsers.id, unique), eq(serviceUsers.active, true)));
-  if (active.length === 0) return 0;
-  const inserted = await db
-    .insert(auditorAccessRequests)
-    .values(
-      active.map((su) => ({
-        auditorId,
-        serviceUserId: su.id,
-        reason: reason && reason.length > 0 ? reason : null,
-      })),
-    )
-    .onConflictDoNothing()
-    .returning({ id: auditorAccessRequests.id });
-  return inserted.length;
-}
-
-/** The auditor's own requests, newest first. */
-export async function listForAuditor(auditorId: string): Promise<AccessRequest[]> {
-  const rows = await selectJoined()
-    .where(eq(auditorAccessRequests.auditorId, auditorId))
-    .orderBy(desc(auditorAccessRequests.requestedAt));
-  return rows.map(toPublicAccessRequest);
-}
-
-/** Every request (optionally one status), newest first — the manager's queue. */
-export async function listForManager(status?: AccessRequestStatus): Promise<AccessRequest[]> {
-  const query = selectJoined();
-  const rows = await (
-    status ? query.where(eq(auditorAccessRequests.status, status)) : query
-  ).orderBy(desc(auditorAccessRequests.requestedAt));
-  return rows.map(toPublicAccessRequest);
-}
-
-export type TransitionResult = 'ok' | 'not_found' | 'invalid';
-
-/**
- * Apply an action to a request inside a transaction, recording the status change in the audit
- * trail. `auditorId` restricts the lookup to the auditor's own request (for WITHDRAW); managers
- * pass null. An action not allowed from the current status is `invalid` (→ 409).
- */
-export async function transition(
-  id: string,
-  action: AccessAction,
-  actorId: string,
-  auditorId: string | null = null,
-): Promise<TransitionResult> {
-  return db.transaction(async (tx) => {
-    const where =
-      auditorId === null
-        ? eq(auditorAccessRequests.id, id)
-        : and(eq(auditorAccessRequests.id, id), eq(auditorAccessRequests.auditorId, auditorId));
-    const [current] = await tx.select().from(auditorAccessRequests).where(where).limit(1);
-    if (!current) return 'not_found';
-    const to = nextStatus(current.status, action);
-    if (to === null) return 'invalid';
-    await tx
-      .update(auditorAccessRequests)
-      .set({ status: to, decidedById: actorId, decidedAt: new Date() })
-      .where(eq(auditorAccessRequests.id, id));
-    await recordAudit(tx, [
-      {
+    const now = new Date();
+    const audits: AuditWrite[] = [];
+    const change = (
+      id: string,
+      status: 'APPROVED' | 'REVOKED' | 'REJECTED',
+      from: string | null,
+      action: string,
+    ) => {
+      audits.push({
         userId: actorId,
-        action: action,
+        action,
         entityType: 'AUDITOR_ACCESS',
         entityId: id,
         field: 'status',
-        fromValue: current.status,
-        toValue: to,
-      },
-    ]);
+        fromValue: from,
+        toValue: status,
+      });
+    };
+
+    for (const su of add) {
+      const pending = pendingBySu.get(su);
+      if (pending) {
+        await tx
+          .update(auditorAccessRequests)
+          .set({ status: 'APPROVED', decidedById: actorId, decidedAt: now })
+          .where(eq(auditorAccessRequests.id, pending.id));
+        pendingBySu.delete(su);
+        change(pending.id, 'APPROVED', 'PENDING', 'GRANT');
+      } else {
+        const [row] = await tx
+          .insert(auditorAccessRequests)
+          .values({
+            auditorId,
+            serviceUserId: su,
+            status: 'APPROVED',
+            decidedById: actorId,
+            decidedAt: now,
+          })
+          .returning({ id: auditorAccessRequests.id });
+        change(row!.id, 'APPROVED', null, 'GRANT');
+      }
+    }
+
+    const revoke = approved.filter((r) => remove.includes(r.serviceUserId));
+    const stalePending = [...pendingBySu.values()];
+    for (const [rows, status] of [
+      [revoke, 'REVOKED'],
+      [stalePending, 'REJECTED'],
+    ] as const) {
+      if (rows.length === 0) continue;
+      await tx
+        .update(auditorAccessRequests)
+        .set({ status, decidedById: actorId, decidedAt: now })
+        .where(
+          inArray(
+            auditorAccessRequests.id,
+            rows.map((r) => r.id),
+          ),
+        );
+      for (const r of rows) change(r.id, status, r.status, 'REVOKE');
+    }
+
+    await recordAudit(tx, audits);
     return 'ok';
   });
 }

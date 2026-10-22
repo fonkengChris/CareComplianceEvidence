@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import AppShell from './components/AppShell';
-import AccessRequestsPage from './pages/AccessRequestsPage';
 import AccountPage from './pages/AccountPage';
 import AuditHistoryPage from './pages/AuditHistoryPage';
 import DashboardPage from './pages/DashboardPage';
@@ -42,7 +41,6 @@ export default function App() {
               plans. The server enforces the same roles. */}
           <Route element={<ProtectedRoute roles={['MANAGER']} />}>
             <Route path="/audit" element={<AuditHistoryPage />} />
-            <Route path="/access-requests" element={<AccessRequestsPage />} />
             <Route path="/service-users" element={<ServiceUsersPage />} />
             <Route path="/service-users/:id" element={<ServiceUserDetailPage />} />
             <Route path="/homes" element={<HomesPage />} />

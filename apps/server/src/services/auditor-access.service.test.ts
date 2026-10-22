@@ -1,32 +1,18 @@
 import { describe, expect, it } from 'bun:test';
-import { nextStatus } from './auditor-access.service';
+import { diffGrants } from './auditor-access.service';
 
-/**
- * Pure transition-table tests — no DB. Only a PENDING request can be approved, rejected or
- * withdrawn; only an APPROVED grant can be revoked; nothing moves out of REJECTED/REVOKED.
- */
-describe('nextStatus', () => {
-  it('approves, rejects or withdraws a pending request', () => {
-    expect(nextStatus('PENDING', 'APPROVE')).toBe('APPROVED');
-    expect(nextStatus('PENDING', 'REJECT')).toBe('REJECTED');
-    expect(nextStatus('PENDING', 'WITHDRAW')).toBe('REJECTED');
+/** Pure grant-diff tests — no DB. */
+describe('diffGrants', () => {
+  it('adds new ids and removes dropped ones', () => {
+    expect(diffGrants(['a', 'b'], ['b', 'c'])).toEqual({ add: ['c'], remove: ['a'] });
   });
 
-  it('cannot revoke a pending request', () => {
-    expect(nextStatus('PENDING', 'REVOKE')).toBeNull();
+  it('is a no-op for the same set in any order', () => {
+    expect(diffGrants(['a', 'b'], ['b', 'a'])).toEqual({ add: [], remove: [] });
   });
 
-  it('only revokes an approved grant', () => {
-    expect(nextStatus('APPROVED', 'REVOKE')).toBe('REVOKED');
-    expect(nextStatus('APPROVED', 'APPROVE')).toBeNull();
-    expect(nextStatus('APPROVED', 'REJECT')).toBeNull();
-    expect(nextStatus('APPROVED', 'WITHDRAW')).toBeNull();
-  });
-
-  it('treats rejected and revoked as final', () => {
-    for (const action of ['APPROVE', 'REJECT', 'REVOKE', 'WITHDRAW'] as const) {
-      expect(nextStatus('REJECTED', action)).toBeNull();
-      expect(nextStatus('REVOKED', action)).toBeNull();
-    }
+  it('removes everything for an empty selection and ignores duplicates', () => {
+    expect(diffGrants(['a'], [])).toEqual({ add: [], remove: ['a'] });
+    expect(diffGrants([], ['a', 'a'])).toEqual({ add: ['a'], remove: [] });
   });
 });

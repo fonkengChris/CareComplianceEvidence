@@ -124,30 +124,32 @@ describe('AUDITOR is confined to reports (403 on every other read)', () => {
     expect(await request('GET', '/api/activity-types', { token })).toBe(403);
   });
 
-  it('403s on the manager side of access requests', async () => {
+  it('cannot list service users or read/set audit assignments (GDPR)', async () => {
     const token = await tokenFor('AUDITOR');
-    expect(await request('GET', '/api/auditor-access', { token })).toBe(403);
-    expect(await request('POST', `/api/auditor-access/${PLAN}/approve`, { token })).toBe(403);
-    expect(await request('POST', `/api/auditor-access/${PLAN}/reject`, { token })).toBe(403);
-    expect(await request('POST', `/api/auditor-access/${PLAN}/revoke`, { token })).toBe(403);
+    // The old self-service request endpoints are gone — nothing lists service users to an auditor.
+    expect(await request('GET', '/api/auditor-access/service-users', { token })).toBe(404);
+    expect(await request('GET', '/api/auditor-access/me', { token })).toBe(404);
+    expect(await request('POST', '/api/auditor-access', { token, body: {} })).toBe(404);
+    expect(await request('GET', `/api/auditor-access/auditors/${SERVICE_USER}`, { token })).toBe(
+      403,
+    );
+    expect(
+      await request('PUT', `/api/auditor-access/auditors/${SERVICE_USER}`, { token, body: {} }),
+    ).toBe(403);
   });
 });
 
-describe('only AUDITORs raise access requests', () => {
-  it('403s MANAGER and STAFF on the auditor side', async () => {
-    for (const role of ['MANAGER', 'STAFF'] as const) {
+describe('only MANAGERs assign service users to auditors', () => {
+  it('403s STAFF and KEY_WORKER', async () => {
+    for (const role of ['STAFF', 'KEY_WORKER'] as const) {
       const token = await tokenFor(role);
-      expect(await request('GET', '/api/auditor-access/me', { token })).toBe(403);
-      expect(await request('GET', '/api/auditor-access/service-users', { token })).toBe(403);
-      expect(await request('POST', '/api/auditor-access', { token, body: {} })).toBe(403);
-      expect(await request('DELETE', `/api/auditor-access/${PLAN}`, { token })).toBe(403);
+      expect(await request('GET', `/api/auditor-access/auditors/${SERVICE_USER}`, { token })).toBe(
+        403,
+      );
+      expect(
+        await request('PUT', `/api/auditor-access/auditors/${SERVICE_USER}`, { token, body: {} }),
+      ).toBe(403);
     }
-  });
-
-  it('403s STAFF on the manager side', async () => {
-    const token = await tokenFor('STAFF');
-    expect(await request('GET', '/api/auditor-access', { token })).toBe(403);
-    expect(await request('POST', `/api/auditor-access/${PLAN}/approve`, { token })).toBe(403);
   });
 });
 

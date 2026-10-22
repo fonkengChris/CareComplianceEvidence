@@ -41,8 +41,7 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
-/** Sheet "Active" labels → boolean (a blank cell means active). Shared with service-users-sheet. */
-export const ACTIVE_VALUES: Record<string, boolean> = {
+const ACTIVE_VALUES: Record<string, boolean> = {
   '': true,
   yes: true,
   y: true,
@@ -92,5 +91,5 @@ export function toHomeRows(rows: string[][]): HomeRow[] {
 
 /** Reads and validates the homes list from CSV text. */
 export function readHomesSheet(csv: string): HomeRow[] {
-  return toHomeRows(parseCsv(csv.replace(/^\uFEFF/, '')));
+  return toHomeRows(parseCsv(csv.replace(/^﻿/, '')));
 }

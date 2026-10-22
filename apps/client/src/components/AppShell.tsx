@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  ShieldCheck,
   ScrollText,
   UserCog,
   Users,
@@ -44,7 +43,6 @@ function navItems(role: string | undefined): NavItem[] {
     items.push({ to: '/users', label: 'Users', icon: ClipboardList });
     items.push({ to: '/reports', label: 'Reports', icon: FileText });
     items.push({ to: '/audit', label: 'Audit', icon: ScrollText });
-    items.push({ to: '/access-requests', label: 'Access requests', icon: ShieldCheck });
   }
   items.push(ACCOUNT);
   return items;

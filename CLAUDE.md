@@ -41,7 +41,8 @@ RefreshToken (id, userId, tokenHash, expiresAt, revokedAt)  — server-side, rev
 ComplianceSettings (id, greenMin, amberMin, redOverPct, ...)  — configurable 🟢/🟡/🔴 boundaries
 AuditLog (who, what, from, to, timestamp)
 AuditorAccessRequest (id, auditorId, serviceUserId, status, reason, decidedById, decidedAt)
-  — status: PENDING | APPROVED | REJECTED | REVOKED; ≤1 open (pending/approved) row per pair
+  — a manager-set audit grant: APPROVED = can audit, REVOKED = removed (PENDING/REJECTED are
+    legacy from the old self-request flow); ≤1 open (pending/approved) row per pair
 ```
 
 Rules to preserve when touching this model:
@@ -59,7 +60,7 @@ Rules to preserve when touching this model:
 | **STAFF** | View assigned plans, record time spent/comments/outcome | Change contracted hours, edit allocated time, manage service users, edit calculated totals |
 | **KEY_WORKER** | Everything STAFF can, plus the Reports page (period reports + PDFs) — only for their caseload: the service users assigned to them (directly or via a home) | Any read or report for service users outside their caseload; anything STAFF cannot do |
 | **MANAGER** | Full CRUD on service users, week plans, activities; view summaries/reports | — |
-| **AUDITOR** | Reports page only — for the service users a manager has **approved** them to audit (they request access per service user; manager approves/rejects/revokes) | Any write except raising/withdrawing their own access requests; any other read (dashboard, service users, homes, week plans, audit history, settings) |
+| **AUDITOR** | Reports page only — for the service users a manager **assigned** them on their user form (GDPR: an auditor never lists or learns of any other service user) | Any write; any other read (dashboard, service users, homes, week plans, audit history, settings, or any list of service users) |
 
 Every new API route must have explicit role middleware. Never rely on frontend hiding alone.
 
