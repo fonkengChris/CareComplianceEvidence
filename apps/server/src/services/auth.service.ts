@@ -130,6 +130,35 @@ export async function revokeAllForUser(userId: string): Promise<void> {
     .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
 }
 
+export type ChangePasswordResult =
+  { ok: true; value: Session } | { ok: false; reason: 'not-found' | 'wrong-password' };
+
+/**
+ * Self-service password change. The current password must verify first. On success every
+ * existing refresh token is revoked (signing out other devices, in case the old password
+ * leaked) and a fresh session is issued so the caller stays signed in here.
+ */
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<ChangePasswordResult> {
+  const [row] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!row || !row.active) return { ok: false, reason: 'not-found' };
+  if (!(await verifyPassword(currentPassword, row.passwordHash))) {
+    return { ok: false, reason: 'wrong-password' };
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  const [updated] = await db
+    .update(users)
+    .set({ passwordHash, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning();
+  await revokeAllForUser(userId);
+  return { ok: true, value: await issueSession(updated) };
+}
+
 /** Fetch the public user for a verified access token (/auth/me). */
 export async function getUserById(id: string): Promise<User | null> {
   const [row] = await db.select().from(users).where(eq(users.id, id)).limit(1);

@@ -174,5 +174,7 @@ describe('unauthenticated requests are rejected', () => {
     expect(await request('GET', '/api/service-users')).toBe(401);
     expect(await request('GET', '/api/summary')).toBe(401);
     expect(await request('GET', '/api/audit-logs')).toBe(401);
+    expect(await request('PUT', '/api/auth/me', { body: {} })).toBe(401);
+    expect(await request('PUT', '/api/auth/me/password', { body: {} })).toBe(401);
   });
 });

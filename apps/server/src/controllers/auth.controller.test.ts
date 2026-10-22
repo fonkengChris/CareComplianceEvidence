@@ -1,4 +1,5 @@
-import type { CreateUserResult, Session } from '../services/auth.service';
+import type { ChangePasswordResult, CreateUserResult, Session } from '../services/auth.service';
+import type { UpdateUserResult } from '../services/user.service';
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import type { Request, Response } from 'express';
 
@@ -9,13 +10,25 @@ import type { Request, Response } from 'express';
 
 const serviceMock = {
   login: mock((): Promise<Session | null> => Promise.resolve(null)),
-  createUser: mock((): Promise<CreateUserResult> => Promise.resolve({ ok: true, value: sampleUser })),
+  createUser: mock((): Promise<CreateUserResult> =>
+    Promise.resolve({ ok: true, value: sampleUser }),
+  ),
   refresh: mock((): Promise<Session | null> => Promise.resolve(null)),
   logout: mock((): Promise<void> => Promise.resolve()),
   getUserById: mock((): Promise<unknown> => Promise.resolve(null)),
+  changePassword: mock((): Promise<ChangePasswordResult> =>
+    Promise.resolve({ ok: false, reason: 'not-found' }),
+  ),
+};
+
+const userServiceMock = {
+  updateUser: mock((): Promise<UpdateUserResult> =>
+    Promise.resolve({ ok: false, reason: 'not-found' }),
+  ),
 };
 
 mock.module('../services/auth.service', () => serviceMock);
+mock.module('../services/user.service', () => userServiceMock);
 
 // Imported AFTER the mock is registered so the controller binds to the stub.
 const controller = await import('./auth.controller');
@@ -79,6 +92,8 @@ afterEach(() => {
   serviceMock.refresh.mockReset();
   serviceMock.logout.mockReset();
   serviceMock.getUserById.mockReset();
+  serviceMock.changePassword.mockReset();
+  userServiceMock.updateUser.mockReset();
 });
 
 describe('login', () => {
@@ -207,5 +222,96 @@ describe('me', () => {
     const res = mockRes();
     await controller.me({ user: { sub: sampleUser.id } } as unknown as Request, res);
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('updateMe', () => {
+  const me = { user: { sub: sampleUser.id } };
+
+  it('400s on an invalid body', async () => {
+    const res = mockRes();
+    await controller.updateMe(
+      { ...me, body: { name: '', email: 'bad' } } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(userServiceMock.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('updates only name/email on the token user, ignoring role/active in the body', async () => {
+    userServiceMock.updateUser.mockResolvedValueOnce({ ok: true, value: sampleUser });
+    const res = mockRes();
+    await controller.updateMe(
+      {
+        ...me,
+        params: { id: 'someone-else' },
+        body: { name: 'Sam', email: 'sam@example.com', role: 'MANAGER', active: true },
+      } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(userServiceMock.updateUser).toHaveBeenCalledWith(sampleUser.id, {
+      name: 'Sam',
+      email: 'sam@example.com',
+    });
+  });
+
+  it('409s on a duplicate email', async () => {
+    userServiceMock.updateUser.mockResolvedValueOnce({ ok: false, reason: 'conflict' });
+    const res = mockRes();
+    await controller.updateMe(
+      { ...me, body: { name: 'Sam', email: 'taken@example.com' } } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(409);
+  });
+});
+
+describe('changeMyPassword', () => {
+  const me = { user: { sub: sampleUser.id } };
+
+  it('400s when the new password is too short', async () => {
+    const res = mockRes();
+    await controller.changeMyPassword(
+      { ...me, body: { currentPassword: 'old', newPassword: 'short' } } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(serviceMock.changePassword).not.toHaveBeenCalled();
+  });
+
+  it('400s (not 401) when the current password is wrong', async () => {
+    serviceMock.changePassword.mockResolvedValueOnce({ ok: false, reason: 'wrong-password' });
+    const res = mockRes();
+    await controller.changeMyPassword(
+      {
+        ...me,
+        body: { currentPassword: 'nope', newPassword: 'NewPassword1!' },
+      } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({ error: 'Current password is incorrect' });
+    expect(res.cookies).toHaveLength(0);
+  });
+
+  it('rotates the session cookie and returns a fresh access token on success', async () => {
+    serviceMock.changePassword.mockResolvedValueOnce({ ok: true, value: session });
+    const res = mockRes();
+    await controller.changeMyPassword(
+      {
+        ...me,
+        body: { currentPassword: 'Password123!', newPassword: 'NewPassword1!' },
+      } as unknown as Request,
+      res,
+    );
+    expect(serviceMock.changePassword).toHaveBeenCalledWith(
+      sampleUser.id,
+      'Password123!',
+      'NewPassword1!',
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.cookies).toEqual([{ name: 'refresh_token', value: 'raw-refresh-token' }]);
+    expect(res.body).toEqual({ accessToken: 'access.jwt.token', user: sampleUser });
   });
 });

@@ -1,7 +1,14 @@
-import { type AuthResponse, loginRequestSchema, userCreateSchema } from '@care/shared';
+import {
+  type AuthResponse,
+  loginRequestSchema,
+  passwordChangeSchema,
+  profileUpdateSchema,
+  userCreateSchema,
+} from '@care/shared';
 import type { CookieOptions, Request, Response } from 'express';
 import { config } from '../config';
 import * as authService from '../services/auth.service';
+import * as userService from '../services/user.service';
 
 /**
  * Auth controllers: HTTP glue only — validate input, call the service, map results to
@@ -92,4 +99,56 @@ export async function me(req: Request, res: Response): Promise<void> {
     return;
   }
   res.json(user);
+}
+
+/**
+ * PUT /auth/me — the signed-in user edits their own name/email. The id comes from the
+ * token, never the body, and the schema has no role/active so nobody can escalate
+ * themselves. A duplicate email is a 409.
+ */
+export async function updateMe(req: Request, res: Response): Promise<void> {
+  const parsed = profileUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid profile' });
+    return;
+  }
+  const result = await userService.updateUser(req.user!.sub, parsed.data);
+  if (!result.ok) {
+    if (result.reason === 'conflict') {
+      res.status(409).json({ error: 'A user with this email already exists' });
+      return;
+    }
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+  res.json(result.value);
+}
+
+/**
+ * PUT /auth/me/password — change your own password. A wrong current password is a 400
+ * (not 401, which the client treats as an expired access token and retries). Success
+ * rotates the session: other devices are signed out and a fresh cookie + access token
+ * are returned for this one.
+ */
+export async function changeMyPassword(req: Request, res: Response): Promise<void> {
+  const parsed = passwordChangeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'New password must be at least 8 characters' });
+    return;
+  }
+  const result = await authService.changePassword(
+    req.user!.sub,
+    parsed.data.currentPassword,
+    parsed.data.newPassword,
+  );
+  if (!result.ok) {
+    if (result.reason === 'wrong-password') {
+      res.status(400).json({ error: 'Current password is incorrect' });
+      return;
+    }
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+  res.cookie(REFRESH_COOKIE, result.value.refreshToken, refreshCookieOptions());
+  res.json(body(result.value));
 }

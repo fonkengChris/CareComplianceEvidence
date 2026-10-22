@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import AppShell from './components/AppShell';
 import AccessRequestsPage from './pages/AccessRequestsPage';
+import AccountPage from './pages/AccountPage';
 import AuditHistoryPage from './pages/AuditHistoryPage';
 import DashboardPage from './pages/DashboardPage';
 import HomeDetailPage from './pages/HomeDetailPage';
@@ -30,6 +31,8 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<DashboardPage />} />
+          {/* Every role can edit their own name, email and password. */}
+          <Route path="/account" element={<AccountPage />} />
           {/* Reports are the only page an auditor sees — scoped server-side to the service
               users a manager approved them to audit. Key workers see their own caseload. */}
           <Route element={<ProtectedRoute roles={['MANAGER', 'AUDITOR', 'KEY_WORKER']} />}>

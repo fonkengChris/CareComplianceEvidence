@@ -8,6 +8,7 @@ import {
   Menu,
   ShieldCheck,
   ScrollText,
+  UserCog,
   Users,
   X,
 } from 'lucide-react';
@@ -28,9 +29,12 @@ import { cn } from '@/lib/utils';
 
 type NavItem = { to: string; label: string; icon: LucideIcon };
 
+// Self-service profile/password page — every role has one.
+const ACCOUNT: NavItem = { to: '/account', label: 'My account', icon: UserCog };
+
 function navItems(role: string | undefined): NavItem[] {
   // Auditors only have the Reports page (scoped to the service users they're approved for).
-  if (role === 'AUDITOR') return [{ to: '/reports', label: 'Reports', icon: FileText }];
+  if (role === 'AUDITOR') return [{ to: '/reports', label: 'Reports', icon: FileText }, ACCOUNT];
   const items: NavItem[] = [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }];
   // Key workers record like staff and also read reports for their own caseload.
   if (role === 'KEY_WORKER') items.push({ to: '/reports', label: 'Reports', icon: FileText });
@@ -42,6 +46,7 @@ function navItems(role: string | undefined): NavItem[] {
     items.push({ to: '/audit', label: 'Audit', icon: ScrollText });
     items.push({ to: '/access-requests', label: 'Access requests', icon: ShieldCheck });
   }
+  items.push(ACCOUNT);
   return items;
 }
 
@@ -101,7 +106,11 @@ export default function AppShell() {
             <div className="flex items-center gap-3">
               <ThemeToggle />
               {user && (
-                <div className="hidden items-center gap-2 sm:flex">
+                <NavLink
+                  to="/account"
+                  aria-label="My account"
+                  className="hidden items-center gap-2 rounded-lg px-1 py-0.5 hover:bg-muted sm:flex"
+                >
                   <span className="grid size-9 place-items-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground">
                     {initials(user.name)}
                   </span>
@@ -109,7 +118,7 @@ export default function AppShell() {
                     <span className="block font-medium text-foreground">{user.name}</span>
                     <span className="block text-xs text-muted-foreground">{user.role}</span>
                   </span>
-                </div>
+                </NavLink>
               )}
               <Button type="button" variant="outline" size="sm" onClick={() => logout()}>
                 <LogOut className="size-4" />
