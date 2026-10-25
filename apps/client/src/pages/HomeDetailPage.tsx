@@ -7,8 +7,6 @@ import { useAuth } from '../auth/AuthContext';
 import { Badge } from '../components/ui/badge';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Label } from '../components/ui/label';
-import { Select } from '../components/ui/select';
 import { toErrorMessage } from '../lib/errors';
 import { fetchHome, fetchHomeServiceUsers, setHomeActive } from '../lib/homes';
 import { endShift, fetchHomeShifts, shiftTime } from '../lib/shifts';
@@ -31,7 +29,7 @@ export default function HomeDetailPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const isManager = user?.role === 'MANAGER';
-  const [staffToAdd, setStaffToAdd] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['homes', id],
@@ -57,12 +55,13 @@ export default function HomeDetailPage() {
   });
   const allUsers = useQuery({ queryKey: ['users'], queryFn: fetchUsers, enabled: isManager });
 
+  // Assign every ticked staff member in one go. The POST is idempotent, so retrying after a
+  // partial failure is safe; refresh the list either way so successes show up.
   const assign = useMutation({
-    mutationFn: (staffId: string) => assignStaffToHome(staffId, id!),
-    onSuccess: () => {
-      setStaffToAdd('');
-      queryClient.invalidateQueries({ queryKey: ['home-assignments', id] });
-    },
+    mutationFn: (staffIds: string[]) =>
+      Promise.all(staffIds.map((staffId) => assignStaffToHome(staffId, id!))),
+    onSuccess: () => setSelected([]),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['home-assignments', id] }),
   });
   const unassign = useMutation({
     mutationFn: (staffId: string) => unassignStaffFromHome(staffId, id!),
@@ -257,32 +256,65 @@ export default function HomeDetailPage() {
               </ul>
             )}
 
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="assign-staff">Assign a staff member</Label>
-                <Select
-                  id="assign-staff"
-                  aria-label="Assign a staff member"
-                  value={staffToAdd}
-                  onChange={(e) => setStaffToAdd(e.target.value)}
-                  className="min-w-56"
-                >
-                  <option value="">— Select —</option>
+            {unassignedStaff.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                All staff are already assigned to this home.
+              </p>
+            ) : (
+              <div role="group" aria-labelledby="assign-staff" className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span id="assign-staff" className="text-sm font-medium">
+                    Assign staff
+                  </span>
+                  {unassignedStaff.length > 1 && (
+                    <div className="flex gap-3 text-sm">
+                      <button
+                        type="button"
+                        className="text-primary hover:underline"
+                        onClick={() => setSelected(unassignedStaff.map((s) => s.id))}
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:underline"
+                        onClick={() => setSelected([])}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto rounded-md border border-border p-2">
                   {unassignedStaff.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
+                    <li key={s.id}>
+                      <label className="flex cursor-pointer items-center gap-3 rounded px-2 py-2 text-sm hover:bg-accent">
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-primary"
+                          checked={selected.includes(s.id)}
+                          onChange={(e) =>
+                            setSelected((prev) =>
+                              e.target.checked ? [...prev, s.id] : prev.filter((x) => x !== s.id),
+                            )
+                          }
+                        />
+                        {s.name}
+                      </label>
+                    </li>
                   ))}
-                </Select>
+                </ul>
+                <div>
+                  <Button
+                    type="button"
+                    onClick={() => assign.mutate(selected)}
+                    disabled={selected.length === 0 || assign.isPending}
+                  >
+                    {assign.isPending ? 'Assigning…' : `Assign selected (${selected.length})`}
+                  </Button>
+                </div>
               </div>
-              <Button
-                type="button"
-                onClick={() => assign.mutate(staffToAdd)}
-                disabled={!staffToAdd || assign.isPending}
-              >
-                {assign.isPending ? 'Assigning…' : 'Assign'}
-              </Button>
-            </div>
+            )}
           </CardContent>
         </Card>
       )}
