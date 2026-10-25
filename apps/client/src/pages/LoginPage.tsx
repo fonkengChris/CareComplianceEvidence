@@ -1,15 +1,8 @@
-import { HeartPulse } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '../components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { PasswordInput } from '../components/ui/password-input';
 import { Label } from '../components/ui/label';
@@ -39,9 +32,10 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-6">
-      <div className="mb-6 flex items-center gap-2 text-lg font-semibold tracking-tight">
-        <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <HeartPulse className="size-5" />
+      <div className="mb-6 flex flex-col items-center gap-3 text-lg font-semibold tracking-tight">
+        {/* White tile keeps the logo legible in dark mode too. */}
+        <span className="rounded-2xl bg-white px-5 py-3 shadow-sm">
+          <img src="/logo.png" alt="Right Care Services" className="h-20 w-auto" />
         </span>
         Care 1-to-1 Hours Tracker
       </div>

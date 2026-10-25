@@ -1,5 +1,5 @@
 import type { PeriodReport, ReportData, ReportNote } from '@care/shared';
-import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
+import { Document, Image, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
 import {
   outcomeLabel,
   periodReportFileName,
@@ -20,8 +20,28 @@ import {
  * It is exercised via the download path only; the pure helpers it uses are tested in reports.test.
  */
 
+/**
+ * The organisation logo from the client's public folder. react-pdf fetches it, so it needs an
+ * absolute URL; resolved lazily so importing this module never touches `window`.
+ */
+function logoSrc(): string {
+  return new URL('/logo.png', window.location.origin).href;
+}
+
+/** Report masthead: the organisation logo, right-aligned above the title. */
+function Masthead() {
+  return (
+    <View style={styles.masthead}>
+      <Image src={logoSrc()} style={styles.logo} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   page: { padding: 36, fontSize: 10, color: '#111827', fontFamily: 'Helvetica' },
+  masthead: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
+  // Source artwork is 357×240; keep that ratio.
+  logo: { height: 48, width: 71 },
   title: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 2 },
   subtitle: { fontSize: 10, color: '#6b7280', marginBottom: 16 },
   section: { marginBottom: 14 },
@@ -148,6 +168,7 @@ export function ReportDocument({ data }: { data: ReportData }) {
       author="Care 1-to-1 Hours Tracker"
     >
       <Page size="A4" style={styles.page}>
+        <Masthead />
         <Text style={styles.title}>Care 1-to-1 Support Report</Text>
         <Text style={styles.subtitle}>Week commencing {data.weekCommencing}</Text>
 
@@ -260,6 +281,7 @@ export function PeriodReportDocument({ report }: { report: PeriodReport }) {
       author="Care 1-to-1 Hours Tracker"
     >
       <Page size="A4" style={styles.page}>
+        <Masthead />
         <Text style={styles.title}>Care 1-to-1 Support Report</Text>
         <Text style={styles.subtitle}>
           {rangeLabel(report.from, report.to)} · {report.weekCount} week

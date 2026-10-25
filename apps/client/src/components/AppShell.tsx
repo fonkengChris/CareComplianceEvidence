@@ -1,7 +1,6 @@
 import {
   ClipboardList,
   FileText,
-  HeartPulse,
   Home,
   LayoutDashboard,
   LogOut,
@@ -153,12 +152,11 @@ function Sidebar({
       <div className="flex items-center justify-between gap-2 px-5 py-4">
         <NavLink
           to="/"
-          className="flex items-center gap-2.5 font-display text-lg font-semibold tracking-tight text-white"
+          aria-label="Right Care Services — Care Hours home"
+          className="flex items-center rounded-xl bg-white px-3 py-1.5"
         >
-          <span className="flex size-9 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar">
-            <HeartPulse className="size-5" />
-          </span>
-          Care Hours
+          {/* White tile: the logo's blue/orange artwork needs a light ground on the dark sidebar. */}
+          <img src="/logo.png" alt="Right Care Services" className="h-10 w-auto" />
         </NavLink>
         <Button
           type="button"
