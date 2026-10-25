@@ -117,7 +117,11 @@ describe('App routing', () => {
     });
 
     renderApp();
-    expect(await screen.findByText('You have no assigned service users yet.')).toBeDefined();
+    expect(
+      await screen.findByText(
+        'No service users to show. If you work at a home, start a shift to see its residents.',
+      ),
+    ).toBeDefined();
     const navLinks = screen.getAllByRole('link').map((a) => a.textContent?.trim());
     expect(navLinks).toContain('Dashboard');
     expect(navLinks).toContain('Reports');

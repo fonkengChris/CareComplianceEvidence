@@ -174,7 +174,8 @@ export default function RecordWeekPage() {
   if (plan.isError || !plan.data) {
     return (
       <p role="alert" className="text-sm font-medium text-destructive">
-        Could not load this week plan.
+        Could not load this week plan. If it belongs to a resident of your home, start a shift
+        there first.
       </p>
     );
   }

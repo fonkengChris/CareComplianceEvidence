@@ -5,7 +5,9 @@ import {
   auditLogs,
   auditorAccessRequests,
   dayEntries,
+  homes,
   serviceUsers,
+  shiftSessions,
   users,
   weekPlans,
 } from '../db/schema';
@@ -82,7 +84,7 @@ type AuditRow = typeof auditLogs.$inferSelect;
 /**
  * Resolve a human-readable label per audited entity for a set of rows, in two batched
  * lookups: service users by name; day entries as "<service user> — <day>" via their plan;
- * auditor access requests as "<auditor> → <service user>".
+ * auditor access requests as "<auditor> → <service user>"; shift sessions as "<staff> @ <home>".
  * Returns a map keyed `"<entityType>:<entityId>"`; missing entities simply have no label.
  */
 async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string>> {
@@ -96,6 +98,9 @@ async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string
     .map((r) => r.entityId as string);
   const accessIds = rows
     .filter((r) => r.entityType === 'AUDITOR_ACCESS' && r.entityId)
+    .map((r) => r.entityId as string);
+  const shiftIds = rows
+    .filter((r) => r.entityType === 'SHIFT_SESSION' && r.entityId)
     .map((r) => r.entityId as string);
 
   if (serviceUserIds.length > 0) {
@@ -124,6 +129,16 @@ async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string
       .innerJoin(serviceUsers, eq(serviceUsers.id, auditorAccessRequests.serviceUserId))
       .where(inArray(auditorAccessRequests.id, accessIds));
     for (const a of found) labels.set(`AUDITOR_ACCESS:${a.id}`, `${a.auditor} → ${a.name}`);
+  }
+
+  if (shiftIds.length > 0) {
+    const found = await db
+      .select({ id: shiftSessions.id, staff: users.name, home: homes.name })
+      .from(shiftSessions)
+      .innerJoin(users, eq(users.id, shiftSessions.staffId))
+      .innerJoin(homes, eq(homes.id, shiftSessions.homeId))
+      .where(inArray(shiftSessions.id, shiftIds));
+    for (const s of found) labels.set(`SHIFT_SESSION:${s.id}`, `${s.staff} @ ${s.home}`);
   }
 
   return labels;

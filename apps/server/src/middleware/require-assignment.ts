@@ -28,7 +28,9 @@ export const requireAssignment: RequestHandler = async (req, res, next) => {
     return;
   }
   if (!(await isStaffAssigned(user.sub, serviceUserId))) {
-    res.status(403).json({ error: 'Not assigned to this service user' });
+    res.status(403).json({
+      error: 'Not assigned to this service user — if they live at your home, start a shift first',
+    });
     return;
   }
   next();

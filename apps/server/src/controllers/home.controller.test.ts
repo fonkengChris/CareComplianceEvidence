@@ -1,6 +1,7 @@
 import type { Home, User } from '@care/shared';
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import type { Request, Response } from 'express';
+import * as realAssignment from '../services/staff-assignment.service';
 
 /**
  * Controller tests stub the service via mock.module — no DB or bound port. They assert
@@ -25,7 +26,16 @@ const homeAssignmentMock = {
   unassignHome: mock((): Promise<void> => Promise.resolve()),
 };
 
+// Spread the real module so other files importing it under this mock keep their functions.
+const assignmentMock = {
+  ...realAssignment,
+  activeShiftHomeIdsForStaff: mock<typeof realAssignment.activeShiftHomeIdsForStaff>(() =>
+    Promise.resolve([]),
+  ),
+};
+
 mock.module('../services/home.service', () => serviceMock);
+mock.module('../services/staff-assignment.service', () => assignmentMock);
 mock.module('../services/home-assignment.service', () => homeAssignmentMock);
 
 const controller = await import('./home.controller');
@@ -67,6 +77,7 @@ afterEach(() => {
   serviceMock.deleteHome.mockReset();
   serviceMock.listServiceUsersForHome.mockReset();
   homeAssignmentMock.listHomesForStaff.mockReset();
+  assignmentMock.activeShiftHomeIdsForStaff.mockReset();
 });
 
 const managerUser = {
@@ -125,13 +136,27 @@ describe('staff / key worker scoping', () => {
     expect(serviceMock.listServiceUsersForHome).not.toHaveBeenCalled();
   });
 
-  it("returns a member's home service users", async () => {
+  it("403s a member who isn't on shift at the home", async () => {
     homeAssignmentMock.listHomesForStaff.mockResolvedValueOnce([sample]);
+    assignmentMock.activeShiftHomeIdsForStaff.mockResolvedValueOnce([]);
     const res = mockRes();
     await controller.listServiceUsers(
       { params: { id: sample.id }, user: staffUser } as unknown as Request,
       res,
     );
+    expect(res.statusCode).toBe(403);
+    expect(serviceMock.listServiceUsersForHome).not.toHaveBeenCalled();
+  });
+
+  it("returns an on-shift member's home service users", async () => {
+    homeAssignmentMock.listHomesForStaff.mockResolvedValueOnce([sample]);
+    assignmentMock.activeShiftHomeIdsForStaff.mockResolvedValueOnce([sample.id]);
+    const res = mockRes();
+    await controller.listServiceUsers(
+      { params: { id: sample.id }, user: staffUser } as unknown as Request,
+      res,
+    );
+    expect(assignmentMock.activeShiftHomeIdsForStaff).toHaveBeenCalledWith(staffUser.sub);
     expect(serviceMock.listServiceUsersForHome).toHaveBeenCalledWith(sample.id);
   });
 });

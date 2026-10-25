@@ -57,6 +57,13 @@
       "when": 1792925827518,
       "tag": "0007_keen_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792928033923,
+      "tag": "0008_minor_ikaris",
+      "breakpoints": true
     }
   ]
 }

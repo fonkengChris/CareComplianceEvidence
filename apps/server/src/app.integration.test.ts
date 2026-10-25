@@ -171,6 +171,25 @@ describe('STAFF cannot reach manager/auditor-only routes', () => {
   });
 });
 
+describe('shift routes are role-scoped', () => {
+  it('403s AUDITOR on every shift route and MANAGER on starting one', async () => {
+    const auditor = await tokenFor('AUDITOR');
+    expect(await request('GET', '/api/shifts/me', { token: auditor })).toBe(403);
+    expect(await request('POST', '/api/shifts', { token: auditor, body: {} })).toBe(403);
+    expect(await request('POST', `/api/shifts/${SERVICE_USER}/end`, { token: auditor })).toBe(403);
+    expect(await request('GET', `/api/shifts/home/${SERVICE_USER}`, { token: auditor })).toBe(403);
+    const manager = await tokenFor('MANAGER');
+    expect(await request('POST', '/api/shifts', { token: manager, body: {} })).toBe(403);
+  });
+
+  it("403s STAFF and KEY_WORKER on a home's live shift list", async () => {
+    for (const role of ['STAFF', 'KEY_WORKER'] as const) {
+      const token = await tokenFor(role);
+      expect(await request('GET', `/api/shifts/home/${SERVICE_USER}`, { token })).toBe(403);
+    }
+  });
+});
+
 describe('unauthenticated requests are rejected', () => {
   it('401s a protected route with no token', async () => {
     expect(await request('GET', '/api/service-users')).toBe(401);
@@ -178,5 +197,7 @@ describe('unauthenticated requests are rejected', () => {
     expect(await request('GET', '/api/audit-logs')).toBe(401);
     expect(await request('PUT', '/api/auth/me', { body: {} })).toBe(401);
     expect(await request('PUT', '/api/auth/me/password', { body: {} })).toBe(401);
+    expect(await request('GET', '/api/shifts/me')).toBe(401);
+    expect(await request('POST', '/api/shifts', { body: {} })).toBe(401);
   });
 });

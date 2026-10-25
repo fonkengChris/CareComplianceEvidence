@@ -35,6 +35,9 @@ ServiceUser (id, name, address, contractedHours, active)
 WeekPlanTemplate (id, serviceUserId [unique], notes)  — one reusable planner per service user
   └── TemplateDayEntry (id, templateId, day, lineNumber, activity, description, timeAllocated)  — plan-time only (no timeSpent/outcome)
 
+ShiftSession (id, staffId, homeId, startedAt, expiresAt, endedAt, endedById)
+  — time-bound home access: ≤1 open row per staff; active = not ended AND expiresAt > now
+
 ActivityType (id, name, active)  — standardised list, admin-maintained
 User (id, name, role, passwordHash)  — role: STAFF | KEY_WORKER | MANAGER | AUDITOR
 RefreshToken (id, userId, tokenHash, expiresAt, revokedAt)  — server-side, revocable
@@ -61,6 +64,13 @@ Rules to preserve when touching this model:
 | **KEY_WORKER** | Everything STAFF can, plus the Reports page (period reports + PDFs) — only for their caseload: the service users assigned to them (directly or via a home) | Any read or report for service users outside their caseload; anything STAFF cannot do |
 | **MANAGER** | Full CRUD on service users, week plans, activities; view summaries/reports | — |
 | **AUDITOR** | Reports page only — for the service users a manager **assigned** them on their user form (GDPR: an auditor never lists or learns of any other service user) | Any write; any other read (dashboard, service users, homes, week plans, audit history, settings, or any list of service users) |
+
+**Home access is shift-gated.** Being assigned to a home only makes STAFF/KEY_WORKER *eligible*; they
+reach that home's service users (dashboard, week plans, recording) only while they hold an active
+`ShiftSession` there — self-started on the staff dashboard, audited (SHIFT_START/SHIFT_END), capped
+at `SHIFT_MAX_HOURS` (default 12), and ended on logout/deactivation or by a manager. Direct
+per-service-user assignments stay permanent. KEY_WORKER *reports* use the full caseload (direct +
+home membership), not shift-gated. All of this resolves centrally in `staff-assignment.service.ts`.
 
 Every new API route must have explicit role middleware. Never rely on frontend hiding alone.
 

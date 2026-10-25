@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CalendarDays, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { ShiftCard } from '../components/ShiftCard';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { fetchMyAssignments } from '../lib/staff-assignments';
 import { fetchWeekPlans } from '../lib/week-plans';
@@ -10,7 +11,7 @@ import { fetchWeekPlans } from '../lib/week-plans';
  * Staff landing page (Phase 5): the service users the signed-in staff member supervises,
  * each with its week plans linking straight into the mobile recording screen. Both queries
  * are scoped to the caller's supervision group server-side, so nothing outside the group
- * is shown.
+ * is shown — residents reached through a home only appear while the caller is on shift there.
  */
 export default function StaffDashboardPage() {
   const { user } = useAuth();
@@ -23,6 +24,8 @@ export default function StaffDashboardPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Welcome, {user?.name}</h1>
         <p className="text-sm text-muted-foreground">Your assigned service users and week plans.</p>
       </div>
+
+      <ShiftCard />
 
       {(assignments.isLoading || weekPlans.isLoading) && (
         <p role="status" className="text-muted-foreground">
@@ -37,7 +40,7 @@ export default function StaffDashboardPage() {
       {assignments.data && assignments.data.length === 0 && (
         <Card>
           <CardContent className="p-10 text-center text-muted-foreground">
-            You have no assigned service users yet.
+            No service users to show. If you work at a home, start a shift to see its residents.
           </CardContent>
         </Card>
       )}

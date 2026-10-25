@@ -9,7 +9,8 @@ import { serviceUserIdForPlan } from '../services/week-plan.service';
  * client renders into a PDF — for one week plan, for one service user over a longer period, or
  * the whole-period overview across service users. Role (MANAGER/AUDITOR/KEY_WORKER) is enforced
  * by route middleware; an AUDITOR is further scoped here to the service users a manager approved
- * them to audit, and a KEY_WORKER to their own caseload (direct or home assignment) — anything else
+ * them to audit, and a KEY_WORKER to their own caseload (direct or home membership, not
+ * shift-gated) — anything else
  * reads as 404 (never reveal existence), and the overview lists only those.
  */
 
@@ -20,7 +21,7 @@ import { serviceUserIdForPlan } from '../services/week-plan.service';
 async function canSeeServiceUser(req: Request, serviceUserId: string): Promise<boolean> {
   const { role, sub } = req.user!;
   if (role === 'AUDITOR') return auditorAccessService.isAuditorApproved(sub, serviceUserId);
-  if (role === 'KEY_WORKER') return staffAssignmentService.isStaffAssigned(sub, serviceUserId);
+  if (role === 'KEY_WORKER') return staffAssignmentService.isInCaseload(sub, serviceUserId);
   return true;
 }
 
@@ -28,9 +29,7 @@ async function canSeeServiceUser(req: Request, serviceUserId: string): Promise<b
 async function scopeFor(req: Request): Promise<string[] | undefined> {
   const { role, sub } = req.user!;
   if (role === 'AUDITOR') return auditorAccessService.approvedServiceUserIds(sub);
-  if (role === 'KEY_WORKER') {
-    return (await staffAssignmentService.listAssignmentsForStaff(sub)).map((su) => su.id);
-  }
+  if (role === 'KEY_WORKER') return staffAssignmentService.listCaseloadIds(sub);
   return undefined;
 }
 

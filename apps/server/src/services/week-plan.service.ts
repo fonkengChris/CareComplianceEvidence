@@ -19,7 +19,7 @@ import { isUniqueViolation } from '../db/errors';
 import { dayEntries, serviceUsers, staffAssignments, weekPlans } from '../db/schema';
 import { buildFieldChanges, recordAudit } from './audit.service';
 import { computeWeekCompliance, getComplianceSettings } from './compliance.service';
-import { homeIdsForStaff } from './staff-assignment.service';
+import { activeShiftHomeIdsForStaff } from './staff-assignment.service';
 
 /**
  * Week-plan service — the only layer that touches the DB for week plans and their
@@ -112,7 +112,7 @@ export async function listWeekPlans({
 /**
  * List week plans a staff member may see — those of the service users in their
  * supervision group only (Phase 5). Reach is the same UNION as `listAssignmentsForStaff`:
- * a direct `(staffId, serviceUserId)` assignment OR membership of a home the service user
+ * a direct `(staffId, serviceUserId)` assignment OR an active shift at the home the service user
  * belongs to. (A home-only inner join here would hide plans for home-reached service users
  * even though they appear on the staff dashboard.) Optionally narrowed to one service
  * user. Managers and auditors use `listWeekPlans` (unscoped) instead.
@@ -121,7 +121,7 @@ export async function listWeekPlansForStaff(
   staffId: string,
   serviceUserId?: string,
 ): Promise<WeekPlan[]> {
-  const homeIds = await homeIdsForStaff(staffId);
+  const homeIds = await activeShiftHomeIdsForStaff(staffId);
   const reach = or(
     eq(staffAssignments.staffId, staffId),
     homeIds.length > 0 ? inArray(serviceUsers.homeId, homeIds) : undefined,

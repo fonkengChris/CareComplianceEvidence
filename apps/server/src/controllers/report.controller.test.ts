@@ -30,10 +30,8 @@ const reportMock = {
 };
 const assignmentMock = {
   ...realAssignment,
-  isStaffAssigned: mock<typeof realAssignment.isStaffAssigned>(() => Promise.resolve(false)),
-  listAssignmentsForStaff: mock<typeof realAssignment.listAssignmentsForStaff>(() =>
-    Promise.resolve([]),
-  ),
+  isInCaseload: mock<typeof realAssignment.isInCaseload>(() => Promise.resolve(false)),
+  listCaseloadIds: mock<typeof realAssignment.listCaseloadIds>(() => Promise.resolve([])),
 };
 const weekPlanMock = {
   ...realWeekPlan,
@@ -82,8 +80,8 @@ function mockRes() {
 afterEach(() => {
   accessMock.approvedServiceUserIds.mockReset();
   accessMock.isAuditorApproved.mockReset();
-  assignmentMock.isStaffAssigned.mockReset();
-  assignmentMock.listAssignmentsForStaff.mockReset();
+  assignmentMock.isInCaseload.mockReset();
+  assignmentMock.listCaseloadIds.mockReset();
   reportMock.getPeriodSummary.mockClear();
   reportMock.getServiceUserPeriodReport.mockClear();
   reportMock.getWeekPlanReport.mockClear();
@@ -98,11 +96,9 @@ describe('getPeriodSummary', () => {
   });
 
   it("scopes a key worker's overview to their assigned service users", async () => {
-    assignmentMock.listAssignmentsForStaff.mockResolvedValueOnce([
-      { id: SU } as Awaited<ReturnType<typeof realAssignment.listAssignmentsForStaff>>[number],
-    ]);
+    assignmentMock.listCaseloadIds.mockResolvedValueOnce([SU]);
     await controller.getPeriodSummary(mockReq('KEY_WORKER'), mockRes());
-    expect(assignmentMock.listAssignmentsForStaff).toHaveBeenCalledWith(AUDITOR);
+    expect(assignmentMock.listCaseloadIds).toHaveBeenCalledWith(AUDITOR);
     expect(accessMock.approvedServiceUserIds).not.toHaveBeenCalled();
     expect(reportMock.getPeriodSummary).toHaveBeenCalledWith('2026-10-12', '2026-10-12', [SU]);
   });
@@ -133,7 +129,7 @@ describe('getServiceUserPeriodReport', () => {
 
 describe('getServiceUserPeriodReport (key worker)', () => {
   it('404s a key worker for a service user outside their caseload', async () => {
-    assignmentMock.isStaffAssigned.mockResolvedValueOnce(false);
+    assignmentMock.isInCaseload.mockResolvedValueOnce(false);
     const res = mockRes();
     await controller.getServiceUserPeriodReport(mockReq('KEY_WORKER', { id: SU }), res);
     expect(res.statusCode).toBe(404);
@@ -141,16 +137,16 @@ describe('getServiceUserPeriodReport (key worker)', () => {
   });
 
   it('loads the report for a service user in their caseload', async () => {
-    assignmentMock.isStaffAssigned.mockResolvedValueOnce(true);
+    assignmentMock.isInCaseload.mockResolvedValueOnce(true);
     await controller.getServiceUserPeriodReport(mockReq('KEY_WORKER', { id: SU }), mockRes());
-    expect(assignmentMock.isStaffAssigned).toHaveBeenCalledWith(AUDITOR, SU);
+    expect(assignmentMock.isInCaseload).toHaveBeenCalledWith(AUDITOR, SU);
     expect(reportMock.getServiceUserPeriodReport).toHaveBeenCalled();
   });
 });
 
 describe('getWeekPlanReport', () => {
   it('404s a key worker for a plan outside their caseload', async () => {
-    assignmentMock.isStaffAssigned.mockResolvedValueOnce(false);
+    assignmentMock.isInCaseload.mockResolvedValueOnce(false);
     const res = mockRes();
     await controller.getWeekPlanReport(mockReq('KEY_WORKER', { id: PLAN }), res);
     expect(res.statusCode).toBe(404);

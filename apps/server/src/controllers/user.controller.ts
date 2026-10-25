@@ -29,7 +29,7 @@ export async function update(req: Request, res: Response): Promise<void> {
     res.status(400).json({ error: 'Invalid user' });
     return;
   }
-  const result = await userService.updateUser(String(req.params.id), parsed.data);
+  const result = await userService.updateUser(String(req.params.id), parsed.data, req.user?.sub);
   if (!result.ok) {
     if (result.reason === 'conflict') {
       res.status(409).json({ error: 'A user with this email already exists' });

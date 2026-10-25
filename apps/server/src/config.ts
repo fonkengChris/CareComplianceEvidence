@@ -69,4 +69,7 @@ export const config = {
   aiTranscribeModel: process.env.AI_TRANSCRIBE_MODEL ?? 'gpt-4o-mini-transcribe',
   // Cap on uploaded audio size (bytes) to keep the transcription endpoint bounded.
   aiTranscribeMaxBytes: Number(process.env.AI_TRANSCRIBE_MAX_BYTES ?? 25 * 1024 * 1024),
+  // Hard cap on a shift session's length: home-path access lapses automatically after this
+  // many hours even if the staff member forgets to tap "End shift".
+  shiftMaxHours: Number(process.env.SHIFT_MAX_HOURS ?? 12),
 } as const;

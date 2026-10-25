@@ -214,6 +214,36 @@ export const staffHomeAssignments = pgTable(
   ],
 );
 
+export const shiftSessions = pgTable(
+  'shift_sessions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // Time-bound access: home membership only makes a staff member eligible; their reach via
+    // the home path is live only while a session here is active (not ended, not expired).
+    staffId: uuid('staff_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    homeId: uuid('home_id')
+      .notNull()
+      .references(() => homes.id, { onDelete: 'cascade' }),
+    startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+    // Hard cap so a forgotten "End shift" never leaves access open indefinitely.
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    // Non-null → ended (by the staff member, logout/deactivation, or a manager).
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endedById: uuid('ended_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt,
+  },
+  (t) => [
+    // At most one open session per staff member; ended rows stay as history.
+    uniqueIndex('shift_sessions_open_staff')
+      .on(t.staffId)
+      .where(sql`${t.endedAt} is null`),
+    index('shift_sessions_staff_idx').on(t.staffId),
+    index('shift_sessions_home_idx').on(t.homeId),
+  ],
+);
+
 export const auditorAccessRequests = pgTable(
   'auditor_access_requests',
   {
@@ -300,6 +330,7 @@ export const auditLogs = pgTable(
 export const homesRelations = relations(homes, ({ many }) => ({
   serviceUsers: many(serviceUsers),
   staffHomeAssignments: many(staffHomeAssignments),
+  shiftSessions: many(shiftSessions),
 }));
 
 export const serviceUsersRelations = relations(serviceUsers, ({ one, many }) => ({
@@ -363,6 +394,17 @@ export const staffHomeAssignmentsRelations = relations(staffHomeAssignments, ({ 
   }),
   home: one(homes, {
     fields: [staffHomeAssignments.homeId],
+    references: [homes.id],
+  }),
+}));
+
+export const shiftSessionsRelations = relations(shiftSessions, ({ one }) => ({
+  staff: one(users, {
+    fields: [shiftSessions.staffId],
+    references: [users.id],
+  }),
+  home: one(homes, {
+    fields: [shiftSessions.homeId],
     references: [homes.id],
   }),
 }));

@@ -5,6 +5,7 @@ import { isUniqueViolation } from '../db/errors';
 import { auditLogs, users } from '../db/schema';
 import { hashPassword } from '../auth/password';
 import { revokeAllForUser, toPublicUser } from './auth.service';
+import { endOpenShiftsForUser } from './shift.service';
 
 /**
  * User service — read + admin-edit side of user management (the manager's view).
@@ -34,10 +35,15 @@ export async function getUser(id: string): Promise<User | null> {
  * Admin edit of a user. Only fields present in `input` are set; an omitted password
  * leaves the current one untouched (a present one is re-hashed here — the plaintext
  * never persists). Deactivating (`active: false`) also revokes every live refresh
- * token so the departed user's access ends promptly (CLAUDE.md). A duplicate email
- * maps to a typed `conflict` for the controller to return as 409.
+ * token and ends any open shift so the departed user's access ends promptly (CLAUDE.md);
+ * `actorId` is who is recorded as ending it. A duplicate email maps to a typed `conflict` for
+ * the controller to return as 409.
  */
-export async function updateUser(id: string, input: UserUpdate): Promise<UpdateUserResult> {
+export async function updateUser(
+  id: string,
+  input: UserUpdate,
+  actorId: string = id,
+): Promise<UpdateUserResult> {
   const patch: Partial<typeof users.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) patch.name = input.name;
   if (input.email !== undefined) patch.email = input.email;
@@ -49,7 +55,10 @@ export async function updateUser(id: string, input: UserUpdate): Promise<UpdateU
     const [row] = await db.update(users).set(patch).where(eq(users.id, id)).returning();
     if (!row) return { ok: false, reason: 'not-found' };
     // Deactivation must terminate any live session.
-    if (input.active === false) await revokeAllForUser(id);
+    if (input.active === false) {
+      await revokeAllForUser(id);
+      await endOpenShiftsForUser(id, actorId);
+    }
     return { ok: true, value: toPublicUser(row) };
   } catch (err) {
     if (isUniqueViolation(err)) return { ok: false, reason: 'conflict' };

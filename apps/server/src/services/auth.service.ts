@@ -11,6 +11,7 @@ import {
   refreshTokenExpiry,
   signAccessToken,
 } from '../auth/tokens';
+import { endOpenShiftsForUser } from './shift.service';
 
 /**
  * Auth service — the only layer that touches the DB for authentication. Controllers
@@ -109,13 +110,18 @@ export async function refresh(rawToken: string): Promise<Session | null> {
   return issueSession(user);
 }
 
-/** Revoke the presented refresh token. Idempotent — unknown/already-revoked is a no-op. */
+/**
+ * Revoke the presented refresh token and end the user's open shift, so signing out also closes
+ * their home-path access. Idempotent — unknown/already-revoked is a no-op.
+ */
 export async function logout(rawToken: string): Promise<void> {
   const tokenHash = hashToken(rawToken);
-  await db
+  const [revoked] = await db
     .update(refreshTokens)
     .set({ revokedAt: new Date() })
-    .where(and(eq(refreshTokens.tokenHash, tokenHash), isNull(refreshTokens.revokedAt)));
+    .where(and(eq(refreshTokens.tokenHash, tokenHash), isNull(refreshTokens.revokedAt)))
+    .returning({ userId: refreshTokens.userId });
+  if (revoked) await endOpenShiftsForUser(revoked.userId, revoked.userId);
 }
 
 /**

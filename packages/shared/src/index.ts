@@ -13,6 +13,7 @@ export * from './activity-type';
 export * from './user';
 export * from './home';
 export * from './home-assignment';
+export * from './shift';
 export * from './auth';
 export * from './compliance';
 export * from './recording-guidance';

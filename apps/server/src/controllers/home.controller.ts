@@ -2,6 +2,7 @@ import { homeCreateSchema, homeUpdateSchema, isAssignmentScoped } from '@care/sh
 import type { Request, Response } from 'express';
 import * as homeAssignmentService from '../services/home-assignment.service';
 import * as homeService from '../services/home.service';
+import { activeShiftHomeIdsForStaff } from '../services/staff-assignment.service';
 
 /**
  * Home controllers: HTTP glue only — validate input, call the service, map to status
@@ -49,9 +50,16 @@ export async function getById(req: Request, res: Response): Promise<void> {
 
 /** GET /homes/:id/service-users — the active service users belonging to a home. */
 export async function listServiceUsers(req: Request, res: Response): Promise<void> {
-  // Home members reach every service user in the home, so the full list is theirs to see.
+  // Members reach every service user in the home, but only while on shift there.
   if (!(await canSeeHome(req, String(req.params.id)))) {
     res.status(404).json({ error: 'Home not found' });
+    return;
+  }
+  if (
+    isAssignmentScoped(req.user!.role) &&
+    !(await activeShiftHomeIdsForStaff(req.user!.sub)).includes(String(req.params.id))
+  ) {
+    res.status(403).json({ error: 'Start a shift at this home to see its service users' });
     return;
   }
   res.json(await homeService.listServiceUsersForHome(String(req.params.id)));

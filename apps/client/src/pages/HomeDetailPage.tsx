@@ -11,6 +11,7 @@ import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
 import { toErrorMessage } from '../lib/errors';
 import { fetchHome, fetchHomeServiceUsers, setHomeActive } from '../lib/homes';
+import { endShift, fetchHomeShifts, shiftTime } from '../lib/shifts';
 import {
   assignStaffToHome,
   fetchStaffForHome,
@@ -19,9 +20,10 @@ import {
 import { fetchUsers } from '../lib/users';
 
 /**
- * Home detail view. Shows the home's service users and — for managers — the staff
- * assigned to it. Assigning a staff member to the home grants them access to every
- * service user in it (group-based supervision, enforced server-side). Managers also get
+ * Home detail view. Shows the home's service users and — for managers — who is on shift
+ * now and the staff assigned to it. Assigning a staff member to the home lets them start a
+ * shift there; only while on shift do they reach its service users (enforced server-side).
+ * A manager can end anyone's shift from here. Managers also get
  * Edit and Deactivate/Reactivate (soft delete). Auditors see it read-only.
  */
 export default function HomeDetailPage() {
@@ -65,6 +67,16 @@ export default function HomeDetailPage() {
   const unassign = useMutation({
     mutationFn: (staffId: string) => unassignStaffFromHome(staffId, id!),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['home-assignments', id] }),
+  });
+
+  const shifts = useQuery({
+    queryKey: ['shifts', 'home', id],
+    queryFn: () => fetchHomeShifts(id!),
+    enabled: isManager && Boolean(id),
+  });
+  const endSession = useMutation({
+    mutationFn: endShift,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shifts', 'home', id] }),
   });
 
   if (isLoading) {
@@ -168,11 +180,54 @@ export default function HomeDetailPage() {
       {isManager && (
         <Card>
           <CardHeader>
+            <CardTitle>On shift now</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {endSession.isError && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                {toErrorMessage(endSession.error)}
+              </p>
+            )}
+            {shifts.data && shifts.data.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nobody is on shift here right now.</p>
+            )}
+            {shifts.data && shifts.data.length > 0 && (
+              <ul className="flex flex-col gap-2">
+                {shifts.data.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between gap-3">
+                    <span className="text-sm">
+                      {s.staffName}{' '}
+                      <span className="text-muted-foreground">
+                        · {shiftTime(s.startedAt)}–{shiftTime(s.expiresAt)}
+                      </span>
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => endSession.mutate(s.id)}
+                      disabled={endSession.isPending}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      End shift
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isManager && (
+        <Card>
+          <CardHeader>
             <CardTitle>Assigned staff</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
-              Staff assigned here can view and record for every service user in this home.
+              Staff assigned here can start a shift at this home. Only while on shift can they view
+              and record for its service users.
             </p>
             {(assign.isError || unassign.isError) && (
               <p role="alert" className="text-sm font-medium text-destructive">
