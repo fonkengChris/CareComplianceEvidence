@@ -13,7 +13,6 @@ type ServiceUserRow = typeof serviceUsers.$inferSelect;
 const baseRow: ServiceUserRow = {
   id: '22222222-2222-4222-8222-222222222222',
   name: 'Ada Lovelace',
-  address: '1 Analytical Ave',
   contractedHours: '12.50',
   homeId: null,
   active: true,
@@ -34,9 +33,8 @@ describe('toPublicServiceUser', () => {
     expect(result.updatedAt).toBe('2026-08-08T00:00:00.000Z');
   });
 
-  it('preserves a null address', () => {
-    const result = toPublicServiceUser({ ...baseRow, address: null });
-    expect(result.address).toBeNull();
+  it('preserves a null home', () => {
+    expect(toPublicServiceUser({ ...baseRow, homeId: null }).homeId).toBeNull();
   });
 
   it('carries the active flag through', () => {

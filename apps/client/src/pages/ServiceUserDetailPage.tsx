@@ -156,8 +156,6 @@ export default function ServiceUserDetailPage() {
 
       <Card>
         <CardContent className="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-3 py-6">
-          <dt className="text-sm text-muted-foreground">Address</dt>
-          <dd className="text-sm">{data.address ?? '—'}</dd>
           <dt className="text-sm text-muted-foreground">Contracted hours</dt>
           <dd className="text-sm">{data.contractedHours}</dd>
           <dt className="text-sm text-muted-foreground">Home</dt>

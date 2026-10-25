@@ -41,7 +41,7 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
-const ACTIVE_VALUES: Record<string, boolean> = {
+export const ACTIVE_VALUES: Record<string, boolean> = {
   '': true,
   yes: true,
   y: true,

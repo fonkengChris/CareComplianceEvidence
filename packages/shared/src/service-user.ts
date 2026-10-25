@@ -7,11 +7,13 @@ import { z } from 'zod';
  *
  * NOTE: the DB column is `numeric`, which Drizzle returns as a JS string; the
  * service layer coerces it to a number so this API contract stays `z.number()`.
+ *
+ * There is no per-person address: a service user lives at their home, so the home's
+ * address is the one shown (e.g. on reports).
  */
 export const serviceUserSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
-  address: z.string().nullable(),
   contractedHours: z.number().min(0),
   // The home this service user belongs to, or null if unassigned. Staff assigned to
   // the home gain access to this service user (group-based supervision).
@@ -23,7 +25,6 @@ export const serviceUserSchema = z.object({
 
 export const serviceUserCreateSchema = z.object({
   name: z.string().min(1),
-  address: z.string().nullable().optional(),
   contractedHours: z.number().min(0),
   homeId: z.string().uuid().nullable().optional(),
   active: z.boolean().optional(),

@@ -5,6 +5,7 @@ import {
   type PeriodSummary,
   type PeriodWeek,
   type ReportData,
+  type ReportHome,
   type ReportNote,
   type ServiceUser,
   WEEKDAYS,
@@ -12,7 +13,7 @@ import {
 } from '@care/shared';
 import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { db } from '../db';
-import { activityTypes, dayEntries, serviceUsers, weekPlans } from '../db/schema';
+import { activityTypes, dayEntries, homes, serviceUsers, weekPlans } from '../db/schema';
 import { computeCompliance, getComplianceSettings } from './compliance.service';
 import { toPublicServiceUser } from './service-user.service';
 import { buildWeeklySummaryRow } from './summary.service';
@@ -43,6 +44,9 @@ type ReportEntry = {
   outcome: Outcome | null;
   comment: string | null;
 };
+
+/** The home fields a report embeds (left-joined, so null when the service user has no home). */
+const homeColumns = { name: homes.name, address: homes.address };
 
 /** Weekday → 0..6 for Mon..Sun, so notes sort in the order a reader scans a week. */
 const WEEKDAY_ORDER = new Map<Weekday, number>(WEEKDAYS.map((d, i) => [d, i]));
@@ -90,6 +94,7 @@ export function buildWeekPlanReport(
   activityNameById: ReadonlyMap<string, string>,
   settings: ReportData['settings'],
   generatedAt: string,
+  home: ReportHome | null = null,
 ): ReportData {
   const row = buildWeeklySummaryRow(
     serviceUser,
@@ -104,6 +109,7 @@ export function buildWeekPlanReport(
   }
   return {
     serviceUser,
+    home,
     weekCommencing: plan.weekCommencing,
     notes: plan.notes,
     compliance: row.compliance,
@@ -138,6 +144,7 @@ export function buildPeriodReport(
   settings: ReportData['settings'],
   range: { from: string; to: string; weekCount: number },
   generatedAt: string,
+  home: ReportHome | null = null,
 ): PeriodReport {
   const weeks: PeriodWeek[] = [];
   const breakdown = new Map<string, ActivityBreakdownItem>();
@@ -190,6 +197,7 @@ export function buildPeriodReport(
 
   return {
     serviceUser,
+    home,
     from: range.from,
     to: range.to,
     weekCount: range.weekCount,
@@ -215,9 +223,10 @@ export function buildPeriodReport(
  */
 export async function getWeekPlanReport(planId: string): Promise<ReportData | null> {
   const [planRow] = await db
-    .select({ plan: weekPlans, serviceUser: serviceUsers })
+    .select({ plan: weekPlans, serviceUser: serviceUsers, home: homeColumns })
     .from(weekPlans)
     .innerJoin(serviceUsers, eq(serviceUsers.id, weekPlans.serviceUserId))
+    .leftJoin(homes, eq(homes.id, serviceUsers.homeId))
     .where(eq(weekPlans.id, planId))
     .limit(1);
   if (!planRow) return null;
@@ -236,6 +245,7 @@ export async function getWeekPlanReport(planId: string): Promise<ReportData | nu
     activityNameById,
     settings,
     new Date().toISOString(),
+    planRow.home,
   );
 }
 
@@ -279,8 +289,9 @@ export async function getServiceUserPeriodReport(
   to: string,
 ): Promise<PeriodReport | null> {
   const [suRow] = await db
-    .select()
+    .select({ serviceUser: serviceUsers, home: homeColumns })
     .from(serviceUsers)
+    .leftJoin(homes, eq(homes.id, serviceUsers.homeId))
     .where(eq(serviceUsers.id, serviceUserId))
     .limit(1);
   if (!suRow) return null;
@@ -317,12 +328,13 @@ export async function getServiceUserPeriodReport(
   }));
 
   return buildPeriodReport(
-    toPublicServiceUser(suRow),
+    toPublicServiceUser(suRow.serviceUser),
     plans,
     activityNameById,
     settings,
     { from: fromMonday, to: toMonday, weekCount: weekCountBetween(fromMonday, toMonday) },
     new Date().toISOString(),
+    suRow.home,
   );
 }
 
@@ -359,8 +371,9 @@ export async function getPeriodSummary(
 
   const [activeRows, activityRows, settings] = await Promise.all([
     db
-      .select()
+      .select({ serviceUser: serviceUsers, home: homeColumns })
       .from(serviceUsers)
+      .leftJoin(homes, eq(homes.id, serviceUsers.homeId))
       .where(
         and(eq(serviceUsers.active, true), scope ? inArray(serviceUsers.id, scope) : undefined),
       )
@@ -400,7 +413,7 @@ export async function getPeriodSummary(
     else plansByServiceUser.set(p.serviceUserId, [plan]);
   }
 
-  const rows = activeRows.map((su) =>
+  const rows = activeRows.map(({ serviceUser: su, home }) =>
     buildPeriodReport(
       toPublicServiceUser(su),
       plansByServiceUser.get(su.id) ?? [],
@@ -408,6 +421,7 @@ export async function getPeriodSummary(
       settings,
       { from: fromMonday, to: toMonday, weekCount },
       generatedAt,
+      home,
     ),
   );
 

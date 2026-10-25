@@ -4,11 +4,8 @@ import { serviceUserCreateSchema } from './service-user';
 describe('serviceUserCreateSchema', () => {
   const valid = { name: 'Alice Morgan', contractedHours: 20 };
 
-  it('accepts a valid service user (address optional)', () => {
+  it('accepts a valid service user', () => {
     expect(serviceUserCreateSchema.safeParse(valid).success).toBe(true);
-    expect(serviceUserCreateSchema.safeParse({ ...valid, address: '12 Elm St' }).success).toBe(
-      true,
-    );
   });
 
   it('rejects a missing name', () => {

@@ -28,7 +28,6 @@ export function toPublicServiceUser(row: ServiceUserRow): ServiceUser {
   return serviceUserSchema.parse({
     id: row.id,
     name: row.name,
-    address: row.address,
     contractedHours: Number(row.contractedHours),
     homeId: row.homeId,
     active: row.active,
@@ -64,7 +63,6 @@ export async function createServiceUser(input: ServiceUserCreate): Promise<Servi
     .insert(serviceUsers)
     .values({
       name: input.name,
-      address: input.address ?? null,
       contractedHours: input.contractedHours.toString(),
       ...(input.homeId === undefined ? {} : { homeId: input.homeId }),
       // `active` defaults to true at the DB when omitted.
@@ -77,7 +75,7 @@ export async function createServiceUser(input: ServiceUserCreate): Promise<Servi
 /**
  * Update the given fields of a service user. Only fields present in `input` are set;
  * returns null when no row matches the id. The one tracked field here — `contractedHours`
- * — is audited in the same transaction as the write (Phase 9); other edits (name, address,
+ * — is audited in the same transaction as the write (Phase 9); other edits (name, home,
  * active) produce no audit rows.
  */
 export async function updateServiceUser(
@@ -87,17 +85,12 @@ export async function updateServiceUser(
 ): Promise<ServiceUser | null> {
   const patch: Partial<typeof serviceUsers.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) patch.name = input.name;
-  if (input.address !== undefined) patch.address = input.address;
   if (input.contractedHours !== undefined) patch.contractedHours = input.contractedHours.toString();
   if (input.homeId !== undefined) patch.homeId = input.homeId;
   if (input.active !== undefined) patch.active = input.active;
 
   const row = await db.transaction(async (tx) => {
-    const [before] = await tx
-      .select()
-      .from(serviceUsers)
-      .where(eq(serviceUsers.id, id))
-      .limit(1);
+    const [before] = await tx.select().from(serviceUsers).where(eq(serviceUsers.id, id)).limit(1);
     if (!before) return null;
 
     const [after] = await tx

@@ -24,10 +24,10 @@ const settings = {
 };
 
 const adaReport: PeriodReport = {
+  home: null,
   serviceUser: {
     id: 'su-1',
     name: 'Ada Lovelace',
-    address: null,
     contractedHours: 10,
     homeId: null,
     active: true,

@@ -15,12 +15,14 @@ import ServiceUsersPage from './ServiceUsersPage';
  * retries so error/empty states settle synchronously.
  */
 
+const HOME_ID = '33333333-3333-4333-8333-333333333333';
+
 const rows = [
   {
     id: '22222222-2222-4222-8222-222222222222',
     name: 'Ada Lovelace',
-    address: '1 Analytical Ave',
     contractedHours: 12.5,
+    homeId: HOME_ID,
     active: true,
     createdAt: '2026-08-08T00:00:00.000Z',
     updatedAt: '2026-08-08T00:00:00.000Z',
@@ -63,6 +65,21 @@ function mockList(role: Role = 'MANAGER') {
         { status: 200, headers: { 'content-type': 'application/json' } },
       );
     }
+    if (url.startsWith('/api/homes')) {
+      return new Response(
+        JSON.stringify([
+          {
+            id: HOME_ID,
+            name: 'Riverside House',
+            address: '1 Riverside Way',
+            active: true,
+            createdAt: '2026-08-08T00:00:00.000Z',
+            updatedAt: '2026-08-08T00:00:00.000Z',
+          },
+        ]),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }
     if (url.startsWith('/api/service-users')) {
       return new Response(JSON.stringify(rows), {
         status: 200,
@@ -101,7 +118,14 @@ describe('ServiceUsersPage', () => {
   it('renders rows returned from the API', async () => {
     renderPage();
     expect(await screen.findByText('Ada Lovelace')).toBeDefined();
-    expect(screen.getByText('1 Analytical Ave')).toBeDefined();
+  });
+
+  it("shows each service user's home instead of an address", async () => {
+    renderPage();
+    const home = await screen.findByRole('link', { name: 'Riverside House' });
+    expect(home.getAttribute('href')).toBe(`/homes/${HOME_ID}`);
+    expect(screen.getByRole('columnheader', { name: 'Home' })).toBeDefined();
+    expect(screen.queryByRole('columnheader', { name: 'Address' })).toBeNull();
   });
 
   it('defaults to the active filter', async () => {

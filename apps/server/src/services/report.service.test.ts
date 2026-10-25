@@ -27,7 +27,6 @@ const settings: ComplianceSettings = {
 const serviceUser: ServiceUser = {
   id: 'su-1',
   name: 'Ada Lovelace',
-  address: '1 Analytical Ave',
   contractedHours: 10, // 600 contracted minutes / week
   homeId: null,
   active: true,

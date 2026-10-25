@@ -55,7 +55,6 @@ export const homes = pgTable('homes', {
 export const serviceUsers = pgTable('service_users', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
-  address: text('address'),
   // Contract term in HOURS (not row-summed). numeric → JS string via Drizzle;
   // the service layer coerces to a number for the API contract.
   contractedHours: numeric('contracted_hours', { precision: 6, scale: 2 }).notNull(),

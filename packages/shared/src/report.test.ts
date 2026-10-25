@@ -3,10 +3,10 @@ import { periodReportSchema, reportDataSchema } from './report';
 
 describe('reportDataSchema', () => {
   const valid = {
+    home: { name: 'Elm House', address: null },
     serviceUser: {
       id: crypto.randomUUID(),
       name: 'Jane Doe',
-      address: '12 Elm St',
       contractedHours: 15,
       homeId: null,
       active: true,
@@ -72,10 +72,10 @@ describe('reportDataSchema', () => {
 
 describe('periodReportSchema', () => {
   const valid = {
+    home: { name: 'Elm House', address: null },
     serviceUser: {
       id: crypto.randomUUID(),
       name: 'Jane Doe',
-      address: null,
       contractedHours: 15,
       homeId: null,
       active: true,

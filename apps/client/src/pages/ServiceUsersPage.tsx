@@ -16,11 +16,13 @@ import {
   TableRow,
 } from '../components/ui/table';
 import { toErrorMessage } from '../lib/errors';
+import { fetchHomes } from '../lib/homes';
 import { type ActiveFilter, deleteServiceUser, fetchServiceUsers } from '../lib/service-users';
 
 /**
  * Service user list: a table (manager pattern, not mobile cards) with an
- * active/inactive/all filter. Rows link through to the detail view. Managers also get
+ * active/inactive/all filter. Rows link through to the detail view and show the home each
+ * service user belongs to (homes hold the address, so service users have none of their own). Managers also get
  * a link to create and a delete button (confirmed first; the server refuses once the
  * service user has week plans — those can only be deactivated). The filter is part of the
  * query key so switching it refetches.
@@ -40,6 +42,10 @@ export default function ServiceUsersPage() {
     queryKey: ['service-users', filter],
     queryFn: () => fetchServiceUsers(filter),
   });
+  // All homes (incl. inactive) so every row's home resolves to a name; the server already
+  // scopes this list to what the viewer may see.
+  const homes = useQuery({ queryKey: ['homes', 'all'], queryFn: () => fetchHomes('all') });
+  const homeNameById = new Map(homes.data?.map((h) => [h.id, h.name]));
   const queryClient = useQueryClient();
   const remove = useMutation({
     mutationFn: (id: string) => deleteServiceUser(id),
@@ -121,7 +127,7 @@ export default function ServiceUsersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Address</TableHead>
+                  <TableHead>Home</TableHead>
                   <TableHead>Contracted hours</TableHead>
                   <TableHead>Status</TableHead>
                   {isManager && <TableHead className="text-right">Actions</TableHead>}
@@ -132,6 +138,7 @@ export default function ServiceUsersPage() {
                   <ServiceUserRow
                     key={su.id}
                     serviceUser={su}
+                    homeName={su.homeId ? homeNameById.get(su.homeId) : undefined}
                     isManager={isManager}
                     onDelete={confirmDelete}
                     deleting={remove.isPending && remove.variables === su.id}
@@ -148,11 +155,13 @@ export default function ServiceUsersPage() {
 
 function ServiceUserRow({
   serviceUser,
+  homeName,
   isManager,
   onDelete,
   deleting,
 }: {
   serviceUser: ServiceUser;
+  homeName: string | undefined;
   isManager: boolean;
   onDelete: (serviceUser: ServiceUser) => void;
   deleting: boolean;
@@ -167,7 +176,15 @@ function ServiceUserRow({
           {serviceUser.name}
         </Link>
       </TableCell>
-      <TableCell className="text-muted-foreground">{serviceUser.address ?? '—'}</TableCell>
+      <TableCell className="text-muted-foreground">
+        {serviceUser.homeId ? (
+          <Link to={`/homes/${serviceUser.homeId}`} className="hover:underline">
+            {homeName ?? 'View home'}
+          </Link>
+        ) : (
+          '—'
+        )}
+      </TableCell>
       <TableCell className="text-muted-foreground">{serviceUser.contractedHours}</TableCell>
       <TableCell>
         {serviceUser.active ? (

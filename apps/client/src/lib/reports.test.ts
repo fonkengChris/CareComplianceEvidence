@@ -29,10 +29,10 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 const report: ReportData = {
+  home: { name: 'Elm House', address: '12 Elm St' },
   serviceUser: {
     id: crypto.randomUUID(),
     name: 'Jane Doe',
-    address: '12 Elm St',
     contractedHours: 15,
     homeId: null,
     active: true,
@@ -65,6 +65,7 @@ const report: ReportData = {
 };
 
 const periodReport: PeriodReport = {
+  home: report.home,
   serviceUser: report.serviceUser,
   from: '2026-08-03',
   to: '2026-08-31',

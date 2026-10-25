@@ -33,7 +33,6 @@ const serviceUsers = [
   { id: 'su-3', name: 'Cara Gone', active: false },
 ].map((su) => ({
   ...su,
-  address: null,
   contractedHours: 10,
   homeId: null,
   createdAt: '2026-08-08T00:00:00.000Z',

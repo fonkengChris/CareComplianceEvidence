@@ -28,6 +28,18 @@ export const reportNoteSchema = z.object({
 export type ReportNote = z.infer<typeof reportNoteSchema>;
 
 /**
+ * The home a report's service user belongs to — embedded server-side so the report can show
+ * where support is delivered (service users carry no address of their own) without the reader
+ * needing access to the homes list (auditors cannot list homes).
+ */
+export const reportHomeSchema = z.object({
+  name: z.string(),
+  address: z.string().nullable(),
+});
+
+export type ReportHome = z.infer<typeof reportHomeSchema>;
+
+/**
  * The data for a commissioner PDF report (Phase 8): everything a one-page export for a single
  * `WeekPlan` needs, assembled server-side so all figures stay backend-owned (CLAUDE.md). It is a
  * single-plan cut of the manager summary — the same compliance, outcome counts and per-activity
@@ -37,6 +49,7 @@ export type ReportNote = z.infer<typeof reportNoteSchema>;
  */
 export const reportDataSchema = z.object({
   serviceUser: serviceUserSchema,
+  home: reportHomeSchema.nullable(),
   weekCommencing: isoDate,
   notes: z.string().nullable(),
   compliance: weekComplianceSchema,
@@ -83,6 +96,7 @@ export type PeriodWeek = z.infer<typeof periodWeekSchema>;
  */
 export const periodReportSchema = z.object({
   serviceUser: serviceUserSchema,
+  home: reportHomeSchema.nullable(),
   from: isoDate,
   to: isoDate,
   weekCount: z.number().int().min(1),

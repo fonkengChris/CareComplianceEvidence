@@ -85,42 +85,36 @@ const WEEKS = augustWeeks();
 // manager summary shows a spread of statuses and a per-user trend across weeks.
 const MOCK_USERS: {
   name: string;
-  address: string;
   contractedHours: number;
   assignToStaff: boolean;
   deliveryByWeek: number[]; // one fraction per WEEKS entry
 }[] = [
   {
     name: 'Grace Thompson',
-    address: '8 Willow Lane, Riverside',
     contractedHours: 20,
     assignToStaff: true,
     deliveryByWeek: [0.98, 1.02, 0.95, 1.0], // 🟢 steady on-track
   },
   {
     name: 'Daniel Reyes',
-    address: '22 Maple Drive, Hillview',
     contractedHours: 15,
     assignToStaff: true,
     deliveryByWeek: [0.8, 0.78, 0.85, 0.82], // 🟡 chronically under target
   },
   {
     name: 'Priya Patel',
-    address: '5 Birch Close, Eastgate',
     contractedHours: 25,
     assignToStaff: false,
     deliveryByWeek: [0.6, 0.55, 0.68, 0.62], // 🔴 needs attention
   },
   {
     name: 'Marcus Bell',
-    address: '17 Cedar Road, Westpark',
     contractedHours: 10,
     assignToStaff: false,
     deliveryByWeek: [1.05, 1.2, 1.15, 1.18], // over-hours (above red ceiling)
   },
   {
     name: 'Nadia Hassan',
-    address: '3 Rowan Street, Northfield',
     contractedHours: 18,
     assignToStaff: true,
     deliveryByWeek: [0.62, 0.8, 0.97, 1.0], // recovering: 🔴 → 🟡 → 🟢
@@ -252,7 +246,6 @@ await db.transaction(async (tx) => {
     .values(
       MOCK_USERS.map((u) => ({
         name: u.name,
-        address: u.address,
         contractedHours: u.contractedHours.toFixed(2),
       })),
     )

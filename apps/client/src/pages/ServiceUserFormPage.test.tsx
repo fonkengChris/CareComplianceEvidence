@@ -15,7 +15,6 @@ import ServiceUserFormPage from './ServiceUserFormPage';
 const created = {
   id: '22222222-2222-4222-8222-222222222222',
   name: 'Ada Lovelace',
-  address: null,
   contractedHours: 12.5,
   active: true,
   createdAt: '2026-08-08T00:00:00.000Z',

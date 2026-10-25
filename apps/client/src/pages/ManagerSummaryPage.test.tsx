@@ -33,7 +33,6 @@ function makeSummary() {
         serviceUser: {
           id: 'su-1',
           name: 'Ada Lovelace',
-          address: null,
           contractedHours: 10,
           active: true,
           createdAt: '2026-08-01T00:00:00.000Z',
@@ -63,7 +62,6 @@ function makeSummary() {
         serviceUser: {
           id: 'su-2',
           name: 'Bob Stone',
-          address: null,
           contractedHours: 8,
           active: true,
           createdAt: '2026-08-01T00:00:00.000Z',

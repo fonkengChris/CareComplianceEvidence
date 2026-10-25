@@ -128,8 +128,14 @@ function NotesSection({ notes, showWeek }: { notes: readonly ReportNote[]; showW
   );
 }
 
+/** The home line on a report: "Name, address" (service users carry no address of their own). */
+function homeLabel(home: ReportData['home']): string {
+  if (!home) return '—';
+  return home.address ? `${home.name}, ${home.address}` : home.name;
+}
+
 export function ReportDocument({ data }: { data: ReportData }) {
-  const { serviceUser, compliance, settings } = data;
+  const { serviceUser, home, compliance, settings } = data;
   const remaining =
     compliance.remainingMinutes >= 0
       ? reportHours(compliance.remainingMinutes)
@@ -152,8 +158,8 @@ export function ReportDocument({ data }: { data: ReportData }) {
             <Text style={styles.infoValue}>{serviceUser.name}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Address</Text>
-            <Text style={styles.infoValue}>{serviceUser.address ?? '—'}</Text>
+            <Text style={styles.infoLabel}>Home</Text>
+            <Text style={styles.infoValue}>{homeLabel(home)}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Contracted</Text>
@@ -233,7 +239,7 @@ export async function downloadReportPdf(data: ReportData): Promise<void> {
  * the staff notes grouped by week. Every figure is displayed as received (backend-owned).
  */
 export function PeriodReportDocument({ report }: { report: PeriodReport }) {
-  const { serviceUser, compliance, settings } = report;
+  const { serviceUser, home, compliance, settings } = report;
   const remaining =
     compliance.remainingMinutes >= 0
       ? reportHours(compliance.remainingMinutes)
@@ -267,8 +273,8 @@ export function PeriodReportDocument({ report }: { report: PeriodReport }) {
             <Text style={styles.infoValue}>{serviceUser.name}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Address</Text>
-            <Text style={styles.infoValue}>{serviceUser.address ?? '—'}</Text>
+            <Text style={styles.infoLabel}>Home</Text>
+            <Text style={styles.infoValue}>{homeLabel(home)}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Contracted</Text>

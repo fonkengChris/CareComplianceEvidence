@@ -31,7 +31,7 @@ export default function ServiceUserFormPage() {
     formState: { errors, isSubmitting },
   } = useForm<ServiceUserCreate>({
     resolver: zodResolver(serviceUserCreateSchema),
-    defaultValues: { name: '', address: '', contractedHours: 0, homeId: null },
+    defaultValues: { name: '', contractedHours: 0, homeId: null },
   });
 
   // Active homes to choose from (the "belongs to" picker).
@@ -48,7 +48,6 @@ export default function ServiceUserFormPage() {
     if (existing.data) {
       reset({
         name: existing.data.name,
-        address: existing.data.address ?? '',
         contractedHours: existing.data.contractedHours,
         homeId: existing.data.homeId,
       });
@@ -56,11 +55,8 @@ export default function ServiceUserFormPage() {
   }, [existing.data, reset]);
 
   const mutation = useMutation({
-    mutationFn: (values: ServiceUserCreate) => {
-      // Normalise an empty address to null so the API stores absence, not "".
-      const payload = { ...values, address: values.address ? values.address : null };
-      return isEdit ? updateServiceUser(id!, payload) : createServiceUser(payload);
-    },
+    mutationFn: (values: ServiceUserCreate) =>
+      isEdit ? updateServiceUser(id!, values) : createServiceUser(values),
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['service-users'] });
       navigate(`/service-users/${saved.id}`, { replace: true });
@@ -103,16 +99,6 @@ export default function ServiceUserFormPage() {
               {errors.name && (
                 <span role="alert" className="text-sm text-destructive">
                   {errors.name.message}
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="address">Address</Label>
-              <Input id="address" type="text" {...register('address')} />
-              {errors.address && (
-                <span role="alert" className="text-sm text-destructive">
-                  {errors.address.message}
                 </span>
               )}
             </div>
