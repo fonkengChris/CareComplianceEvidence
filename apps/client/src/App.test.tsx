@@ -78,6 +78,8 @@ describe('App routing', () => {
 
     renderApp();
     expect(await screen.findByRole('heading', { name: 'Weekly Summary' })).toBeDefined();
+    expect(screen.getByText('Welcome, Morgan Manager')).toBeDefined();
+    expect(screen.getByText('Manager')).toBeDefined();
   });
 
   it('lands an auditor on Reports with Reports as the only nav item', async () => {
@@ -98,6 +100,8 @@ describe('App routing', () => {
 
     renderApp();
     expect(await screen.findByRole('heading', { name: 'Reports & compliance' })).toBeDefined();
+    expect(screen.getByText('Welcome, Morgan Manager')).toBeDefined();
+    expect(screen.getByText('Auditor')).toBeDefined();
     const navLinks = screen.getAllByRole('link').map((a) => a.textContent?.trim());
     expect(navLinks).toContain('Reports');
     for (const hidden of ['Dashboard', 'Service Users', 'Homes', 'Audit', 'Users']) {
@@ -122,6 +126,8 @@ describe('App routing', () => {
         'No service users to show. If you work at a home, start a shift to see its residents.',
       ),
     ).toBeDefined();
+    expect(screen.getByText('Welcome, Morgan Manager')).toBeDefined();
+    expect(screen.getByText('Key worker')).toBeDefined();
     const navLinks = screen.getAllByRole('link').map((a) => a.textContent?.trim());
     expect(navLinks).toContain('Dashboard');
     expect(navLinks).toContain('Reports');

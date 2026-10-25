@@ -14,6 +14,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { ROLE_LABELS } from '../lib/roles';
 import ThemeToggle from './ThemeToggle';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
@@ -84,7 +85,7 @@ export default function AppShell() {
       <div className="flex min-h-screen min-w-0 flex-col">
         <header className="sticky top-0 z-20 border-b border-border bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
           <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <Button
                 type="button"
                 variant="ghost"
@@ -96,9 +97,19 @@ export default function AppShell() {
               >
                 <Menu className="size-5" />
               </Button>
-              <span className="font-display text-base font-semibold tracking-tight sm:text-lg">
-                Care Hours Tracker
-              </span>
+              {/* Greeting for every role, on every page (the logo already names the product). */}
+              {user ? (
+                <div className="min-w-0 leading-tight">
+                  <p className="truncate font-display text-base font-semibold tracking-tight sm:text-lg">
+                    Welcome, {user.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{ROLE_LABELS[user.role]}</p>
+                </div>
+              ) : (
+                <span className="font-display text-base font-semibold tracking-tight sm:text-lg">
+                  Care Hours Tracker
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <ThemeToggle />
@@ -106,14 +117,10 @@ export default function AppShell() {
                 <NavLink
                   to="/account"
                   aria-label="My account"
-                  className="hidden items-center gap-2 rounded-lg px-1 py-0.5 hover:bg-muted sm:flex"
+                  className="hidden rounded-full hover:opacity-80 sm:block"
                 >
                   <span className="grid size-9 place-items-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground">
                     {initials(user.name)}
-                  </span>
-                  <span className="text-sm leading-tight">
-                    <span className="block font-medium text-foreground">{user.name}</span>
-                    <span className="block text-xs text-muted-foreground">{user.role}</span>
                   </span>
                 </NavLink>
               )}
