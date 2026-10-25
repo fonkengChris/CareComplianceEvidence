@@ -33,10 +33,13 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-6">
       <div className="mb-6 flex flex-col items-center gap-3 text-lg font-semibold tracking-tight">
-        {/* White tile keeps the logo legible in dark mode too. */}
-        <span className="rounded-2xl bg-white px-5 py-3 shadow-sm">
-          <img src="/logo.png" alt="Right Care Services" className="h-20 w-auto" />
-        </span>
+        {/* Transparent logo on the page background; brightened slightly in dark mode so the blue
+            wordmark stays legible. */}
+        <img
+          src="/logo.png"
+          alt="Right Care Services"
+          className="h-24 w-auto dark:brightness-[1.2]"
+        />
         Care 1-to-1 Hours Tracker
       </div>
       <Card className="w-full max-w-sm">

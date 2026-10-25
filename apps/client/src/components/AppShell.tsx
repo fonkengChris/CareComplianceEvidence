@@ -153,10 +153,11 @@ function Sidebar({
         <NavLink
           to="/"
           aria-label="Right Care Services — Care Hours home"
-          className="flex items-center rounded-xl bg-white px-3 py-1.5"
+          className="flex items-center"
         >
-          {/* White tile: the logo's blue/orange artwork needs a light ground on the dark sidebar. */}
-          <img src="/logo.png" alt="Right Care Services" className="h-10 w-auto" />
+          {/* Transparent logo straight on the sidebar, which is dark in both themes; a slight
+              brighten keeps the blue wordmark legible (~6:1) without shifting the brand colours. */}
+          <img src="/logo.png" alt="Right Care Services" className="h-14 w-auto brightness-[1.2]" />
         </NavLink>
         <Button
           type="button"
