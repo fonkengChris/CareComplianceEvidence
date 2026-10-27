@@ -182,10 +182,14 @@ describe('shift routes are role-scoped', () => {
     expect(await request('POST', '/api/shifts', { token: manager, body: {} })).toBe(403);
   });
 
-  it("403s STAFF and KEY_WORKER on a home's live shift list", async () => {
-    for (const role of ['STAFF', 'KEY_WORKER'] as const) {
+  it('403s everyone but MANAGER on the shift monitor and forced sign-out', async () => {
+    for (const role of ['STAFF', 'KEY_WORKER', 'AUDITOR'] as const) {
       const token = await tokenFor(role);
       expect(await request('GET', `/api/shifts/home/${SERVICE_USER}`, { token })).toBe(403);
+      expect(await request('GET', '/api/shifts/active', { token })).toBe(403);
+      expect(
+        await request('POST', `/api/shifts/${SERVICE_USER}/terminate`, { token, body: {} }),
+      ).toBe(403);
     }
   });
 });

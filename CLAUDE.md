@@ -68,7 +68,10 @@ Rules to preserve when touching this model:
 **Home access is shift-gated.** Being assigned to a home only makes STAFF/KEY_WORKER *eligible*; they
 reach that home's service users (dashboard, week plans, recording) only while they hold an active
 `ShiftSession` there — self-started on the staff dashboard, audited (SHIFT_START/SHIFT_END), capped
-at `SHIFT_MAX_HOURS` (default 12), and ended on logout/deactivation or by a manager. Direct
+at `SHIFT_MAX_HOURS` (default 12), and ended on logout/deactivation or by a manager. Managers
+monitor live shifts on `/shifts` (and per home); "End & sign out" (`POST /shifts/:id/terminate`,
+optional audited reason) ends the shift AND revokes the person's refresh tokens. There is no
+automatic "unauthorised" detection — that call is the manager's (no rota in v1). Direct
 per-service-user assignments stay permanent. KEY_WORKER *reports* use the full caseload (direct +
 home membership), not shift-gated. All of this resolves centrally in `staff-assignment.service.ts`.
 

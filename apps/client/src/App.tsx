@@ -13,6 +13,7 @@ import ReportsPage from './pages/ReportsPage';
 import ServiceUserDetailPage from './pages/ServiceUserDetailPage';
 import ServiceUserFormPage from './pages/ServiceUserFormPage';
 import ServiceUsersPage from './pages/ServiceUsersPage';
+import ShiftsPage from './pages/ShiftsPage';
 import UserFormPage from './pages/UserFormPage';
 import UsersPage from './pages/UsersPage';
 import WeekPlanDetailPage from './pages/WeekPlanDetailPage';
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="/service-users/:id" element={<ServiceUserDetailPage />} />
             <Route path="/homes" element={<HomesPage />} />
             <Route path="/homes/:id" element={<HomeDetailPage />} />
+            <Route path="/shifts" element={<ShiftsPage />} />
             <Route path="/week-plans/:id" element={<WeekPlanDetailPage />} />
           </Route>
           {/* Staff recording (Phase 5): STAFF/KEY_WORKER (scoped to their group) and managers. */}

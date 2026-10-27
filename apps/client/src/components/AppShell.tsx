@@ -1,4 +1,5 @@
 import {
+  Clock,
   ClipboardList,
   FileText,
   Home,
@@ -40,6 +41,7 @@ function navItems(role: string | undefined): NavItem[] {
   if (role === 'MANAGER') {
     items.push({ to: '/service-users', label: 'Service Users', icon: Users });
     items.push({ to: '/homes', label: 'Homes', icon: Home });
+    items.push({ to: '/shifts', label: 'Shifts', icon: Clock });
     items.push({ to: '/users', label: 'Users', icon: ClipboardList });
     items.push({ to: '/reports', label: 'Reports', icon: FileText });
     items.push({ to: '/audit', label: 'Audit', icon: ScrollText });

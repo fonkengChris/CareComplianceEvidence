@@ -22,5 +22,19 @@ export const shiftStartSchema = z.object({
   homeId: z.string().uuid(),
 });
 
+/**
+ * Body for a manager ending a shift they judge unauthorised. Ending it this way also signs the
+ * staff member out of the app; the optional reason is kept in the audit trail.
+ */
+export const shiftTerminateSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+});
+
+/** Query for the manager's shift monitor: everyone on shift, optionally at one home. */
+export const shiftMonitorQuerySchema = z.object({
+  homeId: z.string().uuid().optional(),
+});
+
 export type ShiftSession = z.infer<typeof shiftSessionSchema>;
+export type ShiftTerminate = z.infer<typeof shiftTerminateSchema>;
 export type ShiftStart = z.infer<typeof shiftStartSchema>;

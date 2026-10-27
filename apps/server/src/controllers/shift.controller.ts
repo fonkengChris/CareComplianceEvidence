@@ -1,4 +1,4 @@
-import { shiftStartSchema } from '@care/shared';
+import { shiftMonitorQuerySchema, shiftStartSchema, shiftTerminateSchema } from '@care/shared';
 import type { Request, Response } from 'express';
 import * as shiftService from '../services/shift.service';
 
@@ -44,4 +44,37 @@ export async function end(req: Request, res: Response): Promise<void> {
 /** GET /shifts/home/:homeId — who is on shift at a home right now (manager view). */
 export async function listForHome(req: Request, res: Response): Promise<void> {
   res.json(await shiftService.listActiveShiftsForHome(String(req.params.homeId)));
+}
+
+/** GET /shifts/active?homeId= — everyone on shift now, optionally at one home (shift monitor). */
+export async function listActive(req: Request, res: Response): Promise<void> {
+  const parsed = shiftMonitorQuerySchema.safeParse({ homeId: req.query.homeId || undefined });
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid home filter' });
+    return;
+  }
+  res.json(await shiftService.listActiveShifts(parsed.data));
+}
+
+/** POST /shifts/:id/terminate — a manager ends an unauthorised shift and signs the person out. */
+export async function terminate(req: Request, res: Response): Promise<void> {
+  const parsed = shiftTerminateSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid reason' });
+    return;
+  }
+  const result = await shiftService.terminateShift(
+    String(req.params.id),
+    req.user!.sub,
+    parsed.data.reason || undefined,
+  );
+  if (result === 'not-found') {
+    res.status(404).json({ error: 'Shift not found' });
+    return;
+  }
+  if (result === 'already-ended') {
+    res.status(409).json({ error: 'This shift has already ended' });
+    return;
+  }
+  res.status(204).end();
 }

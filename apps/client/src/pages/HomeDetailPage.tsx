@@ -4,12 +4,12 @@ import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { ShiftMonitorTable } from '../components/ShiftMonitorTable';
 import { Badge } from '../components/ui/badge';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { toErrorMessage } from '../lib/errors';
 import { fetchHome, fetchHomeServiceUsers, setHomeActive } from '../lib/homes';
-import { endShift, fetchHomeShifts, shiftTime } from '../lib/shifts';
 import {
   assignStaffToHome,
   fetchStaffForHome,
@@ -21,7 +21,7 @@ import { fetchUsers } from '../lib/users';
  * Home detail view. Shows the home's service users and — for managers — who is on shift
  * now and the staff assigned to it. Assigning a staff member to the home lets them start a
  * shift there; only while on shift do they reach its service users (enforced server-side).
- * A manager can end anyone's shift from here. Managers also get
+ * A manager can end anyone's shift and sign them out from here (unauthorised access). Managers also get
  * Edit and Deactivate/Reactivate (soft delete). Auditors see it read-only.
  */
 export default function HomeDetailPage() {
@@ -66,16 +66,6 @@ export default function HomeDetailPage() {
   const unassign = useMutation({
     mutationFn: (staffId: string) => unassignStaffFromHome(staffId, id!),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['home-assignments', id] }),
-  });
-
-  const shifts = useQuery({
-    queryKey: ['shifts', 'home', id],
-    queryFn: () => fetchHomeShifts(id!),
-    enabled: isManager && Boolean(id),
-  });
-  const endSession = useMutation({
-    mutationFn: endShift,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shifts', 'home', id] }),
   });
 
   if (isLoading) {
@@ -181,39 +171,8 @@ export default function HomeDetailPage() {
           <CardHeader>
             <CardTitle>On shift now</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {endSession.isError && (
-              <p role="alert" className="text-sm font-medium text-destructive">
-                {toErrorMessage(endSession.error)}
-              </p>
-            )}
-            {shifts.data && shifts.data.length === 0 && (
-              <p className="text-sm text-muted-foreground">Nobody is on shift here right now.</p>
-            )}
-            {shifts.data && shifts.data.length > 0 && (
-              <ul className="flex flex-col gap-2">
-                {shifts.data.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between gap-3">
-                    <span className="text-sm">
-                      {s.staffName}{' '}
-                      <span className="text-muted-foreground">
-                        · {shiftTime(s.startedAt)}–{shiftTime(s.expiresAt)}
-                      </span>
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => endSession.mutate(s.id)}
-                      disabled={endSession.isPending}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      End shift
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <CardContent>
+            <ShiftMonitorTable homeId={data.id} />
           </CardContent>
         </Card>
       )}

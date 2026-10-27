@@ -30,10 +30,25 @@ export async function endShift(sessionId: string): Promise<void> {
   await api.post(`/api/shifts/${sessionId}/end`);
 }
 
-/** Who is on shift at a home right now (manager view). */
-export async function fetchHomeShifts(homeId: string): Promise<ShiftSession[]> {
-  const { data } = await api.get<ShiftSession[]>(`/api/shifts/home/${homeId}`);
+/** Everyone on shift right now, optionally at one home (manager's shift monitor). */
+export async function fetchActiveShifts(homeId?: string): Promise<ShiftSession[]> {
+  const query = homeId ? `?homeId=${encodeURIComponent(homeId)}` : '';
+  const { data } = await api.get<ShiftSession[]>(`/api/shifts/active${query}`);
   return data;
+}
+
+/**
+ * End a shift a manager judges unauthorised and sign the staff member out of the app. The
+ * optional reason is kept in the audit trail. No body is returned (204).
+ */
+export async function terminateShift(sessionId: string, reason?: string): Promise<void> {
+  await api.post(`/api/shifts/${sessionId}/terminate`, reason ? { reason } : {});
+}
+
+/** "3h 05m"-style time on shift so far, from the start until `now`. */
+export function shiftDuration(startedAt: string, now: Date = new Date()): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - new Date(startedAt).getTime()) / 60_000));
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
 }
 
 /** "14:30"-style local clock time for a shift timestamp. */

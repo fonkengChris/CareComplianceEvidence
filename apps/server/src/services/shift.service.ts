@@ -1,7 +1,7 @@
 import { type ShiftSession, shiftSessionSchema } from '@care/shared';
 import { and, asc, eq, gt, isNull } from 'drizzle-orm';
 import { db } from '../db';
-import { homes, shiftSessions, staffHomeAssignments, users } from '../db/schema';
+import { homes, refreshTokens, shiftSessions, staffHomeAssignments, users } from '../db/schema';
 import { config } from '../config';
 import { type AuditWrite, recordAudit } from './audit.service';
 
@@ -65,18 +65,28 @@ export async function getActiveShift(staffId: string): Promise<ShiftSession | nu
   return row ? toPublicShift(row.shift, row.homeName, row.staffName) : null;
 }
 
-/** Everyone currently on shift at a home, earliest start first — the manager's view. */
-export async function listActiveShiftsForHome(homeId: string): Promise<ShiftSession[]> {
+/**
+ * Everyone currently on shift, optionally at one home, earliest start first — the manager's
+ * shift monitor.
+ */
+export async function listActiveShifts({ homeId }: { homeId?: string } = {}): Promise<
+  ShiftSession[]
+> {
   const rows = await selectShifts()
     .where(
       and(
-        eq(shiftSessions.homeId, homeId),
+        homeId === undefined ? undefined : eq(shiftSessions.homeId, homeId),
         isNull(shiftSessions.endedAt),
         gt(shiftSessions.expiresAt, new Date()),
       ),
     )
     .orderBy(asc(shiftSessions.startedAt));
   return rows.map((r) => toPublicShift(r.shift, r.homeName, r.staffName));
+}
+
+/** Everyone currently on shift at a home — the home detail page's panel. */
+export async function listActiveShiftsForHome(homeId: string): Promise<ShiftSession[]> {
+  return listActiveShifts({ homeId });
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -86,7 +96,13 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * counts as open for the one-open-session index). Audits only sessions that were still granting
  * access — closing an already-lapsed row is bookkeeping, not an access change.
  */
-async function closeOpen(tx: Tx, staffId: string, actorId: string, now: Date): Promise<void> {
+async function closeOpen(
+  tx: Tx,
+  staffId: string,
+  actorId: string,
+  now: Date,
+  note?: string,
+): Promise<void> {
   const closed = await tx
     .update(shiftSessions)
     .set({ endedAt: now, endedById: actorId })
@@ -99,7 +115,7 @@ async function closeOpen(tx: Tx, staffId: string, actorId: string, now: Date): P
       action: 'SHIFT_END',
       entityType: 'SHIFT_SESSION',
       entityId: row.id,
-      toValue: actorId === staffId ? null : 'ended by another user',
+      toValue: note ?? (actorId === staffId ? null : 'ended by another user'),
     }));
   await recordAudit(tx, audits);
 }
@@ -164,6 +180,43 @@ export async function endShift(
       .limit(1);
     if (!row || (!actor.isManager && row.staffId !== actor.id)) return 'not-found';
     if (row.endedAt === null) await closeOpen(tx, row.staffId, actor.id, new Date());
+    return 'ok';
+  });
+}
+
+export type TerminateShiftResult = 'ok' | 'not-found' | 'already-ended';
+
+/**
+ * A manager ends a shift they judge unauthorised AND signs the staff member out: the session
+ * closes and every live refresh token is revoked, in one transaction with the audit row. Home
+ * access stops at once (it is shift-gated); any remaining direct-assignment access lasts at most
+ * until the current short-lived access token expires, as the client can no longer refresh it.
+ */
+export async function terminateShift(
+  sessionId: string,
+  managerId: string,
+  reason?: string,
+): Promise<TerminateShiftResult> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(shiftSessions)
+      .where(eq(shiftSessions.id, sessionId))
+      .limit(1);
+    if (!row) return 'not-found';
+    const now = new Date();
+    if (!isShiftActive(row, now)) return 'already-ended';
+
+    const note = reason
+      ? `ended by manager and signed out: ${reason}`
+      : 'ended by manager and signed out';
+    await closeOpen(tx, row.staffId, managerId, now, note);
+    // Revoked here rather than via auth.service to keep it atomic with the shift end (and to
+    // avoid an import cycle: auth.service already imports this module for logout).
+    await tx
+      .update(refreshTokens)
+      .set({ revokedAt: now })
+      .where(and(eq(refreshTokens.userId, row.staffId), isNull(refreshTokens.revokedAt)));
     return 'ok';
   });
 }

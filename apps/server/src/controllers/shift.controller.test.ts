@@ -20,6 +20,8 @@ const serviceMock = {
   listActiveShiftsForHome: mock<typeof realShift.listActiveShiftsForHome>(() =>
     Promise.resolve([]),
   ),
+  listActiveShifts: mock<typeof realShift.listActiveShifts>(() => Promise.resolve([])),
+  terminateShift: mock<typeof realShift.terminateShift>(() => Promise.resolve('ok' as const)),
 };
 mock.module('../services/shift.service', () => serviceMock);
 
@@ -60,7 +62,13 @@ function mockRes() {
 }
 
 function req(role: string, extra: Record<string, unknown> = {}): Request {
-  return { user: { sub: STAFF, role }, params: {}, body: {}, ...extra } as unknown as Request;
+  return {
+    user: { sub: STAFF, role },
+    params: {},
+    query: {},
+    body: {},
+    ...extra,
+  } as unknown as Request;
 }
 
 afterEach(() => {
@@ -68,6 +76,8 @@ afterEach(() => {
   serviceMock.startShift.mockReset();
   serviceMock.endShift.mockReset();
   serviceMock.listActiveShiftsForHome.mockReset();
+  serviceMock.listActiveShifts.mockReset();
+  serviceMock.terminateShift.mockReset();
 });
 
 describe('me', () => {
@@ -130,5 +140,72 @@ describe('listForHome', () => {
     await controller.listForHome(req('MANAGER', { params: { homeId: HOME } }), res);
     expect(serviceMock.listActiveShiftsForHome).toHaveBeenCalledWith(HOME);
     expect(res.body).toEqual([session]);
+  });
+});
+
+describe('listActive', () => {
+  it('lists every active shift when unfiltered', async () => {
+    serviceMock.listActiveShifts.mockResolvedValueOnce([session]);
+    const res = mockRes();
+    await controller.listActive(req('MANAGER'), res);
+    expect(serviceMock.listActiveShifts).toHaveBeenCalledWith({});
+    expect(res.body).toEqual([session]);
+  });
+
+  it('narrows to one home', async () => {
+    serviceMock.listActiveShifts.mockResolvedValueOnce([]);
+    await controller.listActive(req('MANAGER', { query: { homeId: HOME } }), mockRes());
+    expect(serviceMock.listActiveShifts).toHaveBeenCalledWith({ homeId: HOME });
+  });
+
+  it('400s a malformed home filter', async () => {
+    const res = mockRes();
+    await controller.listActive(req('MANAGER', { query: { homeId: 'nope' } }), res);
+    expect(res.statusCode).toBe(400);
+    expect(serviceMock.listActiveShifts).not.toHaveBeenCalled();
+  });
+});
+
+describe('terminate', () => {
+  it('ends the shift and signs out, passing the manager and reason', async () => {
+    serviceMock.terminateShift.mockResolvedValueOnce('ok');
+    const res = mockRes();
+    await controller.terminate(
+      req('MANAGER', { params: { id: SHIFT }, body: { reason: ' Not on the rota ' } }),
+      res,
+    );
+    expect(serviceMock.terminateShift).toHaveBeenCalledWith(SHIFT, STAFF, 'Not on the rota');
+    expect(res.statusCode).toBe(204);
+  });
+
+  it('treats a blank reason as none', async () => {
+    serviceMock.terminateShift.mockResolvedValueOnce('ok');
+    await controller.terminate(
+      req('MANAGER', { params: { id: SHIFT }, body: { reason: '   ' } }),
+      mockRes(),
+    );
+    expect(serviceMock.terminateShift).toHaveBeenCalledWith(SHIFT, STAFF, undefined);
+  });
+
+  it('404s an unknown shift and 409s one that already ended', async () => {
+    serviceMock.terminateShift.mockResolvedValueOnce('not-found');
+    const missing = mockRes();
+    await controller.terminate(req('MANAGER', { params: { id: SHIFT } }), missing);
+    expect(missing.statusCode).toBe(404);
+
+    serviceMock.terminateShift.mockResolvedValueOnce('already-ended');
+    const ended = mockRes();
+    await controller.terminate(req('MANAGER', { params: { id: SHIFT } }), ended);
+    expect(ended.statusCode).toBe(409);
+  });
+
+  it('400s an over-long reason', async () => {
+    const res = mockRes();
+    await controller.terminate(
+      req('MANAGER', { params: { id: SHIFT }, body: { reason: 'x'.repeat(501) } }),
+      res,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(serviceMock.terminateShift).not.toHaveBeenCalled();
   });
 });

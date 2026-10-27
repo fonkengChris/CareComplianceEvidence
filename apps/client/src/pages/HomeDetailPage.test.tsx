@@ -9,8 +9,8 @@ import { mockApi } from '../lib/test-utils';
 import HomeDetailPage from './HomeDetailPage';
 
 /**
- * Component tests for the manager panels: "On shift now" lists who is on shift and "End shift"
- * POSTs that session's end; "Assigned staff" lets the manager tick several staff and assign them
+ * Component tests for the manager panels: "On shift now" lists who is on shift and "End & sign
+ * out" (after confirming) POSTs that session's terminate; "Assigned staff" lets the manager tick several staff and assign them
  * in one go (one POST each). The API is mocked.
  */
 
@@ -79,8 +79,8 @@ beforeEach(() => {
         },
       });
     }
-    if (url === `/api/shifts/home/${HOME_ID}`) return json(shifts);
-    if (url.endsWith('/end')) {
+    if (url === `/api/shifts/active?homeId=${HOME_ID}`) return json(shifts);
+    if (url.endsWith('/terminate')) {
       ended.push(url);
       shifts = [];
       return new Response(null, { status: 204 });
@@ -119,11 +119,14 @@ function renderPage() {
 }
 
 describe('HomeDetailPage — on shift now', () => {
-  it('lists who is on shift and lets the manager end a shift', async () => {
+  it('lists who is on shift and lets the manager end a shift and sign them out', async () => {
     renderPage();
     expect(await screen.findByText('Sam Staff')).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'End shift' }));
-    await waitFor(() => expect(ended).toEqual([`/api/shifts/${session.id}/end`]));
+    fireEvent.click(
+      screen.getByRole('button', { name: "End Sam Staff's shift and sign them out" }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm sign-out' }));
+    await waitFor(() => expect(ended).toEqual([`/api/shifts/${session.id}/terminate`]));
     expect(await screen.findByText('Nobody is on shift here right now.')).toBeDefined();
   });
 });
