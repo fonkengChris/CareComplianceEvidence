@@ -19,23 +19,23 @@ const serviceMock = {
   listWeekPlans: mock((): Promise<WeekPlan[]> => Promise.resolve([])),
   listWeekPlansForStaff: mock((): Promise<WeekPlan[]> => Promise.resolve([])),
   getWeekPlan: mock((): Promise<WeekPlanWithEntries | null> => Promise.resolve(null)),
-  createWeekPlan: mock(
-    (): Promise<ConflictResult<WeekPlan>> => Promise.resolve({ ok: true, value: plan }),
+  createWeekPlan: mock((): Promise<ConflictResult<WeekPlan>> =>
+    Promise.resolve({ ok: true, value: plan }),
   ),
-  updateWeekPlan: mock(
-    (): Promise<ConflictResult<WeekPlan> | null> => Promise.resolve({ ok: true, value: plan }),
+  updateWeekPlan: mock((): Promise<ConflictResult<WeekPlan> | null> =>
+    Promise.resolve({ ok: true, value: plan }),
   ),
-  replaceDayEntries: mock(
-    (): Promise<ReplaceEntriesResult> => Promise.resolve({ ok: true, value: planWithEntries }),
+  replaceDayEntries: mock((): Promise<ReplaceEntriesResult> =>
+    Promise.resolve({ ok: true, value: planWithEntries }),
   ),
-  duplicateWeekPlan: mock(
-    (): Promise<DuplicateResult> => Promise.resolve({ ok: true, value: planWithEntries }),
+  duplicateWeekPlan: mock((): Promise<DuplicateResult> =>
+    Promise.resolve({ ok: true, value: planWithEntries }),
   ),
-  recordDayEntry: mock(
-    (): Promise<RecordResult> => Promise.resolve({ ok: true, value: planWithEntries }),
+  recordDayEntry: mock((): Promise<RecordResult> =>
+    Promise.resolve({ ok: true, value: planWithEntries }),
   ),
-  addStaffDayEntry: mock(
-    (): Promise<RecordResult> => Promise.resolve({ ok: true, value: planWithEntries }),
+  addStaffDayEntry: mock((): Promise<RecordResult> =>
+    Promise.resolve({ ok: true, value: planWithEntries }),
   ),
 };
 
@@ -161,7 +161,10 @@ describe('getById', () => {
     assignmentMock.isStaffAssigned.mockResolvedValueOnce(false);
     const res = mockRes();
     await controller.getById(
-      { params: { id: plan.id }, user: { ...managerUser, role: 'STAFF' as const } } as unknown as Request,
+      {
+        params: { id: plan.id },
+        user: { ...managerUser, role: 'STAFF' as const },
+      } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(404);
@@ -200,6 +203,7 @@ describe('recordDayEntry', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual(planWithEntries);
     expect(serviceMock.recordDayEntry).toHaveBeenCalledWith(
+      plan.id,
       entryId,
       recordReq.body,
       managerUser.sub,
@@ -315,7 +319,10 @@ describe('replaceDayEntries', () => {
   it('400s on an invalid body', async () => {
     const res = mockRes();
     await controller.replaceDayEntries(
-      { params: { id: plan.id }, body: { entries: [{ day: 'FUNDAY', lineNumber: 1 }] } } as unknown as Request,
+      {
+        params: { id: plan.id },
+        body: { entries: [{ day: 'FUNDAY', lineNumber: 1 }] },
+      } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(400);
@@ -326,7 +333,7 @@ describe('replaceDayEntries', () => {
     serviceMock.replaceDayEntries.mockResolvedValueOnce({ ok: false, reason: 'not_found' });
     const res = mockRes();
     await controller.replaceDayEntries(
-      { params: { id: plan.id }, body: { entries: [] } } as unknown as Request,
+      { params: { id: plan.id }, body: { entries: [] }, user: managerUser } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(404);
@@ -336,7 +343,7 @@ describe('replaceDayEntries', () => {
     serviceMock.replaceDayEntries.mockResolvedValueOnce({ ok: false, reason: 'conflict' });
     const res = mockRes();
     await controller.replaceDayEntries(
-      { params: { id: plan.id }, body: { entries: [] } } as unknown as Request,
+      { params: { id: plan.id }, body: { entries: [] }, user: managerUser } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(409);
@@ -349,21 +356,25 @@ describe('replaceDayEntries', () => {
       {
         params: { id: plan.id },
         body: { entries: [{ day: 'MON', lineNumber: 1, timeAllocated: 30 }] },
+        user: managerUser,
       } as unknown as Request,
       res,
     );
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual(planWithEntries);
+    // The actor is threaded through so activity changes / recorded-line removals are audited.
+    expect(serviceMock.replaceDayEntries).toHaveBeenCalledWith(
+      plan.id,
+      [{ day: 'MON', lineNumber: 1, timeAllocated: 30 }],
+      managerUser.sub,
+    );
   });
 });
 
 describe('duplicate', () => {
   it('400s when the target week is missing/invalid', async () => {
     const res = mockRes();
-    await controller.duplicate(
-      { params: { id: plan.id }, body: {} } as unknown as Request,
-      res,
-    );
+    await controller.duplicate({ params: { id: plan.id }, body: {} } as unknown as Request, res);
     expect(res.statusCode).toBe(400);
     expect(serviceMock.duplicateWeekPlan).not.toHaveBeenCalled();
   });

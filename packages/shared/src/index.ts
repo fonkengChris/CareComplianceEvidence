@@ -9,6 +9,7 @@ export * from './service-user';
 export * from './week-plan';
 export * from './week-plan-template';
 export * from './day-entry';
+export * from './day-entry-photo';
 export * from './activity-type';
 export * from './user';
 export * from './home';

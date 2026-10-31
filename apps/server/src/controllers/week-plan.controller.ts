@@ -78,7 +78,10 @@ export async function update(req: Request, res: Response): Promise<void> {
   res.json(result.value);
 }
 
-/** PUT /:id/day-entries — bulk-replace the whole set of planned lines for a plan. */
+/**
+ * PUT /:id/day-entries — save the whole set of planned lines for a plan. Existing lines
+ * (sent with their id) are updated in place so staff recordings and photos survive.
+ */
 export async function replaceDayEntries(req: Request, res: Response): Promise<void> {
   const parsed = dayEntriesReplaceSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -88,6 +91,7 @@ export async function replaceDayEntries(req: Request, res: Response): Promise<vo
   const result = await weekPlanService.replaceDayEntries(
     String(req.params.id),
     parsed.data.entries,
+    req.user!.sub,
   );
   if (!result.ok) {
     if (result.reason === 'not_found') {
@@ -134,6 +138,7 @@ export async function recordDayEntry(req: Request, res: Response): Promise<void>
     return;
   }
   const result = await weekPlanService.recordDayEntry(
+    String(req.params.id),
     String(req.params.entryId),
     parsed.data,
     req.user!.sub,

@@ -1,5 +1,5 @@
 import type {
-  DayEntryInput,
+  DayEntryPlanInput,
   DayEntryRecord,
   DayEntryStaffCreate,
   WeekPlan,
@@ -37,10 +37,10 @@ export async function updateWeekPlan(id: string, input: WeekPlanUpdate): Promise
   return data;
 }
 
-/** Bulk-replace the whole set of planned lines for a plan. */
+/** Save the whole set of planned lines for a plan (existing lines carry their id). */
 export async function replaceDayEntries(
   id: string,
-  entries: DayEntryInput[],
+  entries: DayEntryPlanInput[],
 ): Promise<WeekPlanWithEntries> {
   const { data } = await api.put<WeekPlanWithEntries>(`/api/week-plans/${id}/day-entries`, {
     entries,

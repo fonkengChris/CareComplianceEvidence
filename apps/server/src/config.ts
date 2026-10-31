@@ -72,4 +72,9 @@ export const config = {
   // Hard cap on a shift session's length: home-path access lapses automatically after this
   // many hours even if the staff member forgets to tap "End shift".
   shiftMaxHours: Number(process.env.SHIFT_MAX_HOURS ?? 12),
+  // Cap on one uploaded evidence photo (bytes). The client downscales to ~1600px JPEG first,
+  // so real uploads are a few hundred KB; this bounds what lands in Postgres.
+  photoMaxBytes: Number(process.env.PHOTO_MAX_BYTES ?? 5 * 1024 * 1024),
+  // Cap on photos attached to one recorded activity, so storage stays bounded.
+  photoMaxPerEntry: Number(process.env.PHOTO_MAX_PER_ENTRY ?? 10),
 } as const;

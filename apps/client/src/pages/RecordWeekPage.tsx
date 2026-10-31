@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import DictateButton from '../components/DictateButton';
+import EntryPhotos from '../components/EntryPhotos';
 import WeekComplianceSummary from '../components/WeekComplianceSummary';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -13,6 +15,7 @@ import { Select } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { fetchActivityTypes } from '../lib/activity-types';
 import { polishComment } from '../lib/ai';
+import { fetchPlanPhotos } from '../lib/day-entry-photos';
 import { toErrorMessage } from '../lib/errors';
 import { fetchRecordingGuidance } from '../lib/recording-guidance';
 import { addDayEntry, fetchWeekPlan, recordDayEntry } from '../lib/week-plans';
@@ -21,7 +24,8 @@ import { addDayEntry, fetchWeekPlan, recordDayEntry } from '../lib/week-plans';
  * Staff recording screen (Phase 5) — mobile-first: one card per planned line, grouped by
  * day, that a staff member fills in during/after a shift. Each card records only what
  * actually happened (time spent, comment, outcome); the planned activity and allocated
- * time are read-only. A prominent "+ Record Activity" adds an unplanned line. `outcome`
+ * time are read-only. Each card can also take or upload evidence photos (saved as soon as
+ * they're picked). A prominent "+ Record Activity" adds an unplanned line. `outcome`
  * is the authoritative signal; the review hint is a low-weight nudge for managers, never a
  * status. All calculations are server-owned and out of scope here (Phase 6).
  */
@@ -88,6 +92,13 @@ export default function RecordWeekPage() {
   // Manager-authored guidance shown above each comment field — how to record, what to
   // capture. App-wide setting; staff read it here (edited by managers on the Reports page).
   const guidance = useQuery({ queryKey: ['recording-guidance'], queryFn: fetchRecordingGuidance });
+  // Evidence photos for every line of the plan (metadata only; images load per thumbnail).
+  const photos = useQuery({
+    queryKey: ['week-plans', id, 'photos'],
+    queryFn: () => fetchPlanPhotos(id!),
+    enabled: Boolean(id),
+  });
+  const { user } = useAuth();
   const activityName = (activityTypeId: string | null) =>
     activityTypeId ? (activities.data?.find((a) => a.id === activityTypeId)?.name ?? '—') : '—';
 
@@ -302,6 +313,18 @@ export default function RecordWeekPage() {
                           value={draft.comment}
                           onChange={(e) => setDraft(entry.id, { comment: e.target.value })}
                           className="text-base"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <Label>Photos</Label>
+                        <EntryPhotos
+                          planId={id!}
+                          entryId={entry.id}
+                          photos={photos.data?.filter((p) => p.dayEntryId === entry.id) ?? []}
+                          label={activityName(entry.activityTypeId)}
+                          currentUserId={user?.id}
+                          canRemoveAny={user?.role === 'MANAGER'}
                         />
                       </div>
 

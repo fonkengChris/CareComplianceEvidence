@@ -2,6 +2,7 @@ import {
   type ComplianceSettings,
   type DayEntry,
   type DayEntryInput,
+  type DayEntryPlanInput,
   type DayEntryRecord,
   type DayEntryStaffCreate,
   type WeekPlan,
@@ -95,9 +96,9 @@ export function buildEntryInserts(
 }
 
 /** List week plans, optionally for one service user, newest week first. */
-export async function listWeekPlans({
-  serviceUserId,
-}: { serviceUserId?: string } = {}): Promise<WeekPlan[]> {
+export async function listWeekPlans({ serviceUserId }: { serviceUserId?: string } = {}): Promise<
+  WeekPlan[]
+> {
   const rows =
     serviceUserId === undefined
       ? await db.select().from(weekPlans).orderBy(asc(weekPlans.weekCommencing))
@@ -138,9 +139,7 @@ export async function listWeekPlansForStaff(
       ),
     )
     .where(
-      serviceUserId === undefined
-        ? reach
-        : and(reach, eq(weekPlans.serviceUserId, serviceUserId)),
+      serviceUserId === undefined ? reach : and(reach, eq(weekPlans.serviceUserId, serviceUserId)),
     )
     .orderBy(asc(weekPlans.weekCommencing));
   return rows.map((r) => toPublicWeekPlan(r.plan));
@@ -197,9 +196,7 @@ export type ConflictResult<T> = { ok: true; value: T } | { ok: false; reason: 'c
  * Create a week plan. Returns a `conflict` result when the service user already has
  * a plan for that week (unique constraint), for the controller to map to 409.
  */
-export async function createWeekPlan(
-  input: WeekPlanCreate,
-): Promise<ConflictResult<WeekPlan>> {
+export async function createWeekPlan(input: WeekPlanCreate): Promise<ConflictResult<WeekPlan>> {
   try {
     const [row] = await db
       .insert(weekPlans)
@@ -238,17 +235,51 @@ export async function updateWeekPlan(
 }
 
 export type ReplaceEntriesResult =
-  | { ok: true; value: WeekPlanWithEntries }
-  | { ok: false; reason: 'not_found' | 'conflict' };
+  { ok: true; value: WeekPlanWithEntries } | { ok: false; reason: 'not_found' | 'conflict' };
 
 /**
- * Bulk-replace a plan's day entries in one transaction: delete the existing set and
- * insert the new one. `not_found` if the plan is gone; `conflict` if two rows share
- * a (day, lineNumber) slot (the `day_entries_plan_day_line` unique constraint).
+ * Split a planner save into what happens to each line. Pure so it can be unit-tested.
+ * A row whose `id` is an existing line of THIS plan updates that line in place; a row with
+ * no id — or an id that isn't on this plan (never touch another plan's rows), or a repeat of
+ * an id already claimed — is a new line. Existing lines left out of the save are removed.
+ */
+export function planEntryChanges(
+  existingIds: readonly string[],
+  entries: DayEntryPlanInput[],
+): {
+  updates: (DayEntryInput & { id: string })[];
+  inserts: DayEntryInput[];
+  deleteIds: string[];
+} {
+  const existing = new Set(existingIds);
+  const claimed = new Set<string>();
+  const updates: (DayEntryInput & { id: string })[] = [];
+  const inserts: DayEntryInput[] = [];
+  for (const { id, ...line } of entries) {
+    if (id !== undefined && existing.has(id) && !claimed.has(id)) {
+      claimed.add(id);
+      updates.push({ ...line, id });
+    } else {
+      inserts.push(line);
+    }
+  }
+  return { updates, inserts, deleteIds: existingIds.filter((id) => !claimed.has(id)) };
+}
+
+/**
+ * Save a plan's full set of planned lines in one transaction. Existing lines are UPDATED IN
+ * PLACE (plan-time fields only), so anything staff recorded against them — time spent,
+ * outcome, comment, evidence photos — survives a manager editing the plan. Only lines the
+ * manager removed are deleted (taking their recording and photos with them, by design);
+ * removing a recorded line, and changing a line's activity, are audited.
+ *
+ * `not_found` if the plan is gone; `conflict` if two rows share a (day, lineNumber) slot
+ * (the `day_entries_plan_day_line` unique constraint).
  */
 export async function replaceDayEntries(
   weekPlanId: string,
-  entries: DayEntryInput[],
+  entries: DayEntryPlanInput[],
+  actorUserId: string,
 ): Promise<ReplaceEntriesResult> {
   try {
     const found = await db.transaction(async (tx) => {
@@ -259,9 +290,71 @@ export async function replaceDayEntries(
         .limit(1);
       if (!plan) return false;
 
-      await tx.delete(dayEntries).where(eq(dayEntries.weekPlanId, weekPlanId));
-      const inserts = buildEntryInserts(weekPlanId, entries);
-      if (inserts.length > 0) await tx.insert(dayEntries).values(inserts);
+      const existing = await tx
+        .select()
+        .from(dayEntries)
+        .where(eq(dayEntries.weekPlanId, weekPlanId));
+      const byId = new Map(existing.map((e) => [e.id, e]));
+      const { updates, inserts, deleteIds } = planEntryChanges(
+        existing.map((e) => e.id),
+        entries,
+      );
+
+      if (deleteIds.length > 0) {
+        await tx.delete(dayEntries).where(inArray(dayEntries.id, deleteIds));
+        // Removing a line that staff had already recorded against destroys evidence: log it.
+        const recorded = deleteIds
+          .map((id) => byId.get(id)!)
+          .filter((e) => e.timeSpent !== null || e.outcome !== null);
+        await recordAudit(
+          tx,
+          recorded.map((e) => ({
+            userId: actorUserId,
+            action: 'DELETE',
+            entityType: 'DAY_ENTRY' as const,
+            entityId: e.id,
+            fromValue: `${e.day} · ${e.outcome ?? '—'} · ${e.timeSpent ?? '—'}min`,
+          })),
+        );
+      }
+
+      // Kept lines may swap (day, lineNumber) slots. Park them on unique negative line
+      // numbers first so the per-row updates below can never collide with the unique
+      // constraint mid-way through renumbering.
+      for (const [i, u] of updates.entries()) {
+        await tx
+          .update(dayEntries)
+          .set({ lineNumber: -(i + 1) })
+          .where(eq(dayEntries.id, u.id));
+      }
+      for (const u of updates) {
+        const [after] = await tx
+          .update(dayEntries)
+          .set({
+            day: u.day,
+            lineNumber: u.lineNumber,
+            activityTypeId: u.activityTypeId ?? null,
+            description: u.description ?? null,
+            timeAllocated: u.timeAllocated ?? null,
+            updatedAt: new Date(),
+          })
+          .where(eq(dayEntries.id, u.id))
+          .returning();
+        const changes = buildFieldChanges(byId.get(u.id)!, after, ['activityTypeId']);
+        await recordAudit(
+          tx,
+          changes.map((c) => ({
+            ...c,
+            userId: actorUserId,
+            action: 'UPDATE',
+            entityType: 'DAY_ENTRY' as const,
+            entityId: u.id,
+          })),
+        );
+      }
+
+      const rows = buildEntryInserts(weekPlanId, inserts);
+      if (rows.length > 0) await tx.insert(dayEntries).values(rows);
       return true;
     });
     if (!found) return { ok: false, reason: 'not_found' };
@@ -274,8 +367,7 @@ export async function replaceDayEntries(
 }
 
 export type DuplicateResult =
-  | { ok: true; value: WeekPlanWithEntries }
-  | { ok: false; reason: 'not_found' | 'conflict' };
+  { ok: true; value: WeekPlanWithEntries } | { ok: false; reason: 'not_found' | 'conflict' };
 
 /**
  * "Duplicate Previous Week": create a new plan for the source's service user at
@@ -290,11 +382,7 @@ export async function duplicateWeekPlan(
 ): Promise<DuplicateResult> {
   try {
     const createdId = await db.transaction(async (tx) => {
-      const [source] = await tx
-        .select()
-        .from(weekPlans)
-        .where(eq(weekPlans.id, sourceId))
-        .limit(1);
+      const [source] = await tx.select().from(weekPlans).where(eq(weekPlans.id, sourceId)).limit(1);
       if (!source) return null;
 
       const [created] = await tx
@@ -328,17 +416,17 @@ export async function duplicateWeekPlan(
 }
 
 export type RecordResult =
-  | { ok: true; value: WeekPlanWithEntries }
-  | { ok: false; reason: 'not_found' };
+  { ok: true; value: WeekPlanWithEntries } | { ok: false; reason: 'not_found' };
 
 /**
  * Staff recording (Phase 5): set ONLY `timeSpent`, `outcome` and `comment` on an
  * existing planned line — never the activity, allocated time, or line position. Returns
  * the refreshed plan (so the client sees the recomputed `reviewHint`), or `not_found` if
- * the entry id is unknown. The tracked-field changes (`timeSpent`, `outcome`) are audited
+ * the entry id is unknown or belongs to a different plan. The tracked-field changes (`timeSpent`, `outcome`) are audited
  * in the same transaction as the write (Phase 9), so the trail can never drift.
  */
 export async function recordDayEntry(
+  weekPlanId: string,
   entryId: string,
   input: DayEntryRecord,
   actorUserId: string,
@@ -352,10 +440,12 @@ export async function recordDayEntry(
   if (input.comment !== undefined) patch.comment = input.comment;
 
   const row = await db.transaction(async (tx) => {
+    // Scoped to the plan in the URL: the assignment guard authorised THAT plan, so an entry
+    // id from any other plan must not be writable through it.
     const [before] = await tx
       .select()
       .from(dayEntries)
-      .where(eq(dayEntries.id, entryId))
+      .where(and(eq(dayEntries.id, entryId), eq(dayEntries.weekPlanId, weekPlanId)))
       .limit(1);
     if (!before) return null;
 

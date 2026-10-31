@@ -1,4 +1,6 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
+import { config } from '../config';
+import * as photoController from '../controllers/day-entry-photo.controller';
 import * as reportController from '../controllers/report.controller';
 import * as weekPlanController from '../controllers/week-plan.controller';
 import { requireAuth, requireRole } from '../middleware/auth';
@@ -50,4 +52,31 @@ weekPlanRouter.post(
   canRecord,
   requireAssignment,
   weekPlanController.addDayEntry,
+);
+
+// Evidence photos on recorded lines: same audience and assignment guard as recording, so a
+// STAFF/KEY_WORKER reaches them only for their own direct assignments or active-shift home.
+// Uploads are raw image bytes (not JSON), size-capped; the service sniffs the real type.
+weekPlanRouter.get('/:id/photos', requireAuth, canRecord, requireAssignment, photoController.list);
+weekPlanRouter.post(
+  '/:id/day-entries/:entryId/photos',
+  requireAuth,
+  canRecord,
+  requireAssignment,
+  express.raw({ type: () => true, limit: config.photoMaxBytes }),
+  photoController.upload,
+);
+weekPlanRouter.get(
+  '/:id/photos/:photoId',
+  requireAuth,
+  canRecord,
+  requireAssignment,
+  photoController.getImage,
+);
+weekPlanRouter.delete(
+  '/:id/photos/:photoId',
+  requireAuth,
+  canRecord,
+  requireAssignment,
+  photoController.remove,
 );

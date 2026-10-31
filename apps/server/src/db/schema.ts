@@ -2,6 +2,7 @@ import { ACCESS_REQUEST_STATUSES, OUTCOMES, ROLES, WEEKDAYS } from '@care/shared
 import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
+  customType,
   date,
   index,
   integer,
@@ -125,6 +126,33 @@ export const dayEntries = pgTable(
   // Deterministic line slots; leads with weekPlanId so it also serves the
   // per-plan fetch used by the Phase 6 aggregation. Does not cap rows per day.
   (t) => [unique('day_entries_plan_day_line').on(t.weekPlanId, t.day, t.lineNumber)],
+);
+
+// Drizzle 0.44 has no built-in bytea; postgres.js maps it to/from a Node Buffer.
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => 'bytea',
+});
+
+export const dayEntryPhotos = pgTable(
+  'day_entry_photos',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // Evidence photo attached to a recorded line. `cascade` — a photo has no meaning without
+    // the activity it evidences.
+    dayEntryId: uuid('day_entry_id')
+      .notNull()
+      .references(() => dayEntries.id, { onDelete: 'cascade' }),
+    // Kept null-safe if the uploader is deleted; staff may remove only their own photos.
+    uploadedById: uuid('uploaded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    // Sniffed from the bytes server-side, never trusted from the client header.
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    // Stored in Postgres (no object store in v1): images are downscaled client-side and
+    // size-capped by config, so rows stay small. Never selected on list reads.
+    data: bytea('data').notNull(),
+    createdAt,
+  },
+  (t) => [index('day_entry_photos_day_entry_idx').on(t.dayEntryId)],
 );
 
 export const weekPlanTemplates = pgTable(
@@ -370,7 +398,7 @@ export const weekPlansRelations = relations(weekPlans, ({ one, many }) => ({
   dayEntries: many(dayEntries),
 }));
 
-export const dayEntriesRelations = relations(dayEntries, ({ one }) => ({
+export const dayEntriesRelations = relations(dayEntries, ({ one, many }) => ({
   weekPlan: one(weekPlans, {
     fields: [dayEntries.weekPlanId],
     references: [weekPlans.id],
@@ -378,6 +406,14 @@ export const dayEntriesRelations = relations(dayEntries, ({ one }) => ({
   activityType: one(activityTypes, {
     fields: [dayEntries.activityTypeId],
     references: [activityTypes.id],
+  }),
+  photos: many(dayEntryPhotos),
+}));
+
+export const dayEntryPhotosRelations = relations(dayEntryPhotos, ({ one }) => ({
+  dayEntry: one(dayEntries, {
+    fields: [dayEntryPhotos.dayEntryId],
+    references: [dayEntries.id],
   }),
 }));
 

@@ -105,6 +105,13 @@ describe('AUDITOR is blocked (403) from every write route', () => {
     expect(await request('POST', `/api/week-plans/${PLAN}/day-entries`, { token, body: {} })).toBe(
       403,
     );
+    expect(
+      await request('POST', `/api/week-plans/${PLAN}/day-entries/${ENTRY}/photos`, {
+        token,
+        body: {},
+      }),
+    ).toBe(403);
+    expect(await request('DELETE', `/api/week-plans/${PLAN}/photos/${ENTRY}`, { token })).toBe(403);
     expect(await request('PUT', '/api/compliance-settings', { token, body: {} })).toBe(403);
     expect(await request('POST', '/api/assignments', { token, body: {} })).toBe(403);
   });
@@ -120,6 +127,8 @@ describe('AUDITOR is confined to reports (403 on every other read)', () => {
     expect(await request('GET', '/api/homes', { token })).toBe(403);
     expect(await request('GET', '/api/week-plans', { token })).toBe(403);
     expect(await request('GET', `/api/week-plans/${PLAN}`, { token })).toBe(403);
+    expect(await request('GET', `/api/week-plans/${PLAN}/photos`, { token })).toBe(403);
+    expect(await request('GET', `/api/week-plans/${PLAN}/photos/${ENTRY}`, { token })).toBe(403);
     expect(await request('GET', '/api/compliance-settings', { token })).toBe(403);
     expect(await request('GET', '/api/activity-types', { token })).toBe(403);
   });

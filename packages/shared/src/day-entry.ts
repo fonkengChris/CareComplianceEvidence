@@ -50,9 +50,21 @@ export const dayEntryCreateSchema = z.object({
  */
 export const dayEntryInputSchema = dayEntryCreateSchema.omit({ weekPlanId: true });
 
-/** Body for the bulk-replace endpoint: the full set of entries for one plan. */
+/**
+ * A planner-grid row on a week-plan save. `id` is present for a line that already exists,
+ * so the server updates it IN PLACE — keeping anything staff recorded against it (time
+ * spent, outcome, comment, photos). Rows without an `id` are new lines.
+ */
+export const dayEntryPlanInputSchema = dayEntryInputSchema.extend({
+  id: z.string().uuid().optional(),
+});
+
+/**
+ * Body for the bulk-save endpoint: the full set of entries for one plan. Existing lines
+ * missing from the set are removed; the rest are updated or inserted.
+ */
 export const dayEntriesReplaceSchema = z.object({
-  entries: z.array(dayEntryInputSchema),
+  entries: z.array(dayEntryPlanInputSchema),
 });
 
 /**
@@ -84,6 +96,7 @@ export const dayEntryStaffCreateSchema = z.object({
 export type DayEntry = z.infer<typeof dayEntrySchema>;
 export type DayEntryCreate = z.infer<typeof dayEntryCreateSchema>;
 export type DayEntryInput = z.infer<typeof dayEntryInputSchema>;
+export type DayEntryPlanInput = z.infer<typeof dayEntryPlanInputSchema>;
 export type DayEntriesReplace = z.infer<typeof dayEntriesReplaceSchema>;
 export type DayEntryRecord = z.infer<typeof dayEntryRecordSchema>;
 export type DayEntryStaffCreate = z.infer<typeof dayEntryStaffCreateSchema>;

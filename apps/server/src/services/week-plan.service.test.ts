@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { dayEntries, weekPlans } from '../db/schema';
 import {
   buildEntryInserts,
+  planEntryChanges,
   sortDayEntries,
   toPublicDayEntry,
   toPublicWeekPlan,
@@ -109,5 +110,46 @@ describe('buildEntryInserts', () => {
     expect('timeSpent' in row).toBe(false);
     expect('outcome' in row).toBe(false);
     expect(row.timeAllocated).toBe(30);
+  });
+});
+
+describe('planEntryChanges', () => {
+  const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const OTHER_PLAN = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+  it('updates kept lines in place, inserts new ones and removes the omitted', () => {
+    const { updates, inserts, deleteIds } = planEntryChanges(
+      [A, B],
+      [
+        { id: A, day: 'TUE', lineNumber: 2, timeAllocated: 30 },
+        { day: 'MON', lineNumber: 1, timeAllocated: 60 },
+      ],
+    );
+    expect(updates).toEqual([{ id: A, day: 'TUE', lineNumber: 2, timeAllocated: 30 }]);
+    expect(inserts).toEqual([{ day: 'MON', lineNumber: 1, timeAllocated: 60 }]);
+    expect(deleteIds).toEqual([B]);
+  });
+
+  it('never updates a row from another plan — an unknown id becomes a new line', () => {
+    const { updates, inserts, deleteIds } = planEntryChanges(
+      [A],
+      [{ id: OTHER_PLAN, day: 'MON', lineNumber: 1 }],
+    );
+    expect(updates).toEqual([]);
+    expect(inserts).toEqual([{ day: 'MON', lineNumber: 1 }]);
+    expect(deleteIds).toEqual([A]);
+  });
+
+  it('claims an id once; a repeated id is inserted as a new line', () => {
+    const { updates, inserts } = planEntryChanges(
+      [A],
+      [
+        { id: A, day: 'MON', lineNumber: 1 },
+        { id: A, day: 'MON', lineNumber: 2 },
+      ],
+    );
+    expect(updates.map((u) => u.lineNumber)).toEqual([1]);
+    expect(inserts).toEqual([{ day: 'MON', lineNumber: 2 }]);
   });
 });

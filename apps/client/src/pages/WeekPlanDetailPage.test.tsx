@@ -58,6 +58,7 @@ const activityTypes = [
   },
 ];
 
+let lastPutBody: { entries: { id?: string }[] } | null = null;
 let putCount = 0;
 let duplicateCount = 0;
 
@@ -79,13 +80,17 @@ function mockApi(role: Role) {
   installApiMock(async (url, init) => {
     const method = init.method;
     const json = (body: unknown, status = 200) =>
-      new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
 
     if (url === '/api/auth/refresh') return json({ accessToken: 't', user: makeUser(role) });
     if (url === `/api/week-plans/${PLAN}` && method === 'GET') return json(planWithEntries);
     if (url === '/api/activity-types') return json(activityTypes);
     if (url === `/api/week-plans/${PLAN}/day-entries` && method === 'PUT') {
       putCount += 1;
+      lastPutBody = init.body ? JSON.parse(String(init.body)) : null;
       return json(planWithEntries);
     }
     if (url === `/api/week-plans/${PLAN}/duplicate` && method === 'POST') {
@@ -143,6 +148,19 @@ describe('WeekPlanDetailPage', () => {
     await waitFor(() => expect(putCount).toBe(1));
   });
 
+  it('sends existing lines with their id (updated in place) and new lines without', async () => {
+    mockApi('MANAGER');
+    renderPlanner();
+    const addButtons = await screen.findAllByRole('button', { name: 'Add line' });
+    fireEvent.click(addButtons[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
+    await waitFor(() => expect(putCount).toBe(1));
+    expect(lastPutBody?.entries.map((e) => e.id)).toEqual([
+      '33333333-3333-4333-8333-333333333333',
+      undefined,
+    ]);
+  });
+
   it('duplicates into a chosen target week', async () => {
     mockApi('MANAGER');
     renderPlanner();
@@ -159,7 +177,7 @@ describe('WeekPlanDetailPage', () => {
     // Wait for the plan to render, then assert no manager actions are present.
     expect(await screen.findByText('Monday')).toBeDefined();
     expect(screen.queryByRole('button', { name: 'Save plan' })).toBeNull();
-    expect(screen.queryByRole('button', { name: '+ Add line' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add line' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Duplicate Previous Week' })).toBeNull();
   });
 });

@@ -21,7 +21,7 @@ import { duplicateWeekPlan, fetchWeekPlan, replaceDayEntries } from '../lib/week
  * The weekly planner: a manager builds a week's support lines grouped Mon→Sun. Rows can
  * be added/removed freely per day (no fixed count — CLAUDE.md); each has an activity
  * (from the admin-maintained dropdown), a description and allocated minutes. All rows
- * save at once via a single bulk replace. "Duplicate Previous Week" seeds a new week.
+ * save at once in one bulk save that updates existing lines in place. "Duplicate Previous Week" seeds a new week.
  * Non-managers see the plan read-only. `timeSpent`/`outcome` are Phase 5, not shown here.
  */
 
@@ -35,9 +35,14 @@ const DAY_LABELS: Record<Weekday, string> = {
   SUN: 'Sunday',
 };
 
-/** One editable planner row. `timeAllocated` is a string for the number input. */
+/**
+ * One editable planner row. `timeAllocated` is a string for the number input. `entryId` is
+ * the saved line's id (absent for a new row) so a save updates it in place, keeping what
+ * staff recorded against it.
+ */
 type Row = {
   key: string;
+  entryId?: string;
   day: Weekday;
   activityTypeId: string;
   description: string;
@@ -72,6 +77,7 @@ export default function WeekPlanDetailPage() {
       setRows(
         plan.data.dayEntries.map((e) => ({
           key: nextKey(),
+          entryId: e.id,
           day: e.day,
           activityTypeId: e.activityTypeId ?? '',
           description: e.description ?? '',
@@ -87,6 +93,7 @@ export default function WeekPlanDetailPage() {
         rows
           .filter((r) => r.day === day)
           .map((r, i) => ({
+            id: r.entryId,
             day,
             lineNumber: i + 1,
             activityTypeId: r.activityTypeId ? r.activityTypeId : null,
