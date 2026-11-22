@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import BrandLogo from '../components/BrandLogo';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -32,16 +33,9 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-6">
-      <div className="mb-6 flex flex-col items-center gap-3 text-lg font-semibold tracking-tight">
-        {/* Transparent logo on the page background; brightened slightly in dark mode so the blue
-            wordmark stays legible. */}
-        <img
-          src="/logo.png"
-          alt="Right Care Services"
-          className="h-24 w-auto dark:brightness-[1.2]"
-        />
-        Care 1-to-1 Hours Tracker
-      </div>
+      <h1 className="mb-8">
+        <BrandLogo size="lg" className="text-foreground" />
+      </h1>
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-xl">Sign in</CardTitle>
@@ -83,6 +77,13 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      {/* The provider's own logo; brightened slightly in dark mode so the blue wordmark stays
+          legible. */}
+      <img
+        src="/logo.png"
+        alt="Right Care Services"
+        className="mt-8 h-12 w-auto dark:brightness-[1.2]"
+      />
     </main>
   );
 }

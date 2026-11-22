@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABELS } from '../lib/roles';
+import BrandLogo from './BrandLogo';
 import ThemeToggle from './ThemeToggle';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
@@ -159,14 +160,9 @@ function Sidebar({
       )}
     >
       <div className="flex items-center justify-between gap-2 px-5 py-4">
-        <NavLink
-          to="/"
-          aria-label="Right Care Services — Care Hours home"
-          className="flex items-center"
-        >
-          {/* Transparent logo straight on the sidebar, which is dark in both themes; a slight
-              brighten keeps the blue wordmark legible (~6:1) without shifting the brand colours. */}
-          <img src="/logo.png" alt="Right Care Services" className="h-14 w-auto brightness-[1.2]" />
+        <NavLink to="/" aria-label="1:1 care records — home" className="flex items-center">
+          {/* The sidebar is dark in both themes, so the clock ring and wordmark go white. */}
+          <BrandLogo className="text-white" />
         </NavLink>
         <Button
           type="button"

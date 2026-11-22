@@ -73,7 +73,19 @@ function serveClient(target: Express): void {
   const indexHtml = path.join(clientDist, 'index.html');
   if (!existsSync(indexHtml)) return;
 
-  target.use(express.static(clientDist, { index: false, maxAge: '1y' }));
+  // Only Vite's content-hashed bundles are safe to cache for a year. Everything else at the
+  // root — the PWA service worker (sw.js, workbox-*.js), manifest and icons — keeps a stable
+  // name across deploys, so it must revalidate or installed apps would never see an update.
+  target.use(
+    '/assets',
+    express.static(path.join(clientDist, 'assets'), { maxAge: '1y', immutable: true }),
+  );
+  target.use(
+    express.static(clientDist, {
+      index: false,
+      setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+    }),
+  );
   target.use((req, res, next) => {
     if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
     res.setHeader('Cache-Control', 'no-cache');
