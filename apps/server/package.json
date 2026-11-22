@@ -14,6 +14,7 @@
     "db:seed-homes": "bun run src/db/seed-homes.ts",
     "db:seed-service-users": "bun run src/db/seed-service-users.ts",
     "db:mock": "bun run src/db/mock.ts",
+    "db:move-photos-to-r2": "bun run src/db/move-photos-to-r2.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

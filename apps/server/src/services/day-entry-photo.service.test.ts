@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { detectImageType, toPublicPhoto } from './day-entry-photo.service';
+import { detectImageType, photoStorageKey, toPublicPhoto } from './day-entry-photo.service';
 
 /**
  * Pure tests — no DB. The stored (and later served) Content-Type comes from the bytes, never
@@ -37,5 +37,11 @@ describe('toPublicPhoto', () => {
     });
     expect(photo.createdAt).toBe('2026-10-31T09:00:00.000Z');
     expect(photo.uploadedById).toBeNull();
+  });
+});
+
+describe('photoStorageKey', () => {
+  it('groups R2 objects under their week plan', () => {
+    expect(photoStorageKey('plan-1', 'photo-1')).toBe('day-entry-photos/plan-1/photo-1');
   });
 });

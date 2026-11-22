@@ -18,8 +18,10 @@ import { and, asc, eq, inArray, or } from 'drizzle-orm';
 import { db } from '../db';
 import { isUniqueViolation } from '../db/errors';
 import { dayEntries, serviceUsers, staffAssignments, weekPlans } from '../db/schema';
+import { deleteObjectsQuietly } from '../storage/object-store';
 import { buildFieldChanges, recordAudit } from './audit.service';
 import { computeWeekCompliance, getComplianceSettings } from './compliance.service';
+import { storageKeysForEntries } from './day-entry-photo.service';
 import { activeShiftHomeIdsForStaff } from './staff-assignment.service';
 
 /**
@@ -281,6 +283,8 @@ export async function replaceDayEntries(
   entries: DayEntryPlanInput[],
   actorUserId: string,
 ): Promise<ReplaceEntriesResult> {
+  // R2 objects of photos on removed lines; deleted once the transaction commits.
+  let orphanedPhotoKeys: string[] = [];
   try {
     const found = await db.transaction(async (tx) => {
       const [plan] = await tx
@@ -301,6 +305,7 @@ export async function replaceDayEntries(
       );
 
       if (deleteIds.length > 0) {
+        orphanedPhotoKeys = await storageKeysForEntries(tx, deleteIds);
         await tx.delete(dayEntries).where(inArray(dayEntries.id, deleteIds));
         // Removing a line that staff had already recorded against destroys evidence: log it.
         const recorded = deleteIds
@@ -358,6 +363,7 @@ export async function replaceDayEntries(
       return true;
     });
     if (!found) return { ok: false, reason: 'not_found' };
+    await deleteObjectsQuietly(orphanedPhotoKeys);
     // Re-read through getWeekPlan so the response carries fresh compliance figures.
     return { ok: true, value: (await getWeekPlan(weekPlanId)) as WeekPlanWithEntries };
   } catch (err) {

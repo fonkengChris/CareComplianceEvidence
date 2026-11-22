@@ -20,6 +20,15 @@ services:
         generateValue: true
       - key: DATABASE_URL
         sync: false
+      # Cloudflare R2 for uploaded photos (optional; without it they're kept in Postgres).
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
       # Optional overrides (defaults live in apps/server/src/config.ts):
       # - key: ACCESS_TOKEN_TTL
       #   value: 15m

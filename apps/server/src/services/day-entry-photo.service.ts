@@ -5,10 +5,11 @@ import {
   dayEntryPhotoSchema,
   isAssignmentScoped,
 } from '@care/shared';
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNotNull } from 'drizzle-orm';
 import { config } from '../config';
 import { db } from '../db';
 import { dayEntries, dayEntryPhotos } from '../db/schema';
+import { deleteObjectsQuietly, objectStore } from '../storage/object-store';
 import { recordAudit } from './audit.service';
 
 /**
@@ -17,7 +18,16 @@ import { recordAudit } from './audit.service';
  * assignment guard authorises the PLAN, so each query here also proves the entry/photo
  * belongs to that plan, or a staff member could reach another plan's photos by id.
  * Adding and removing a photo are audited in the same transaction as the write.
+ *
+ * Image bytes live in Cloudflare R2 when it's configured (see storage/object-store.ts),
+ * otherwise inline in Postgres; each row records which. Reads honour either, so rows
+ * uploaded before R2 keep working until `db:move-photos-to-r2` copies them across.
  */
+
+/** R2 object key for a photo. Grouped by plan so a bucket listing mirrors the data. */
+export function photoStorageKey(weekPlanId: string, photoId: string): string {
+  return `day-entry-photos/${weekPlanId}/${photoId}`;
+}
 
 /**
  * Identify an image from its leading bytes. The client-sent Content-Type is never trusted:
@@ -109,22 +119,41 @@ export async function addPhoto(
       .where(eq(dayEntryPhotos.dayEntryId, dayEntryId));
     if (n >= config.photoMaxPerEntry) return { ok: false, reason: 'too_many' };
 
-    const [created] = await tx
-      .insert(dayEntryPhotos)
-      .values({ dayEntryId, uploadedById: actorUserId, contentType, sizeBytes: data.length, data })
-      .returning(metadataColumns);
+    // With R2, upload first under a pre-chosen id, then insert the row pointing at it. If
+    // the insert or audit fails the transaction rolls back, so remove the object too.
+    const id = crypto.randomUUID();
+    const storageKey = objectStore ? photoStorageKey(weekPlanId, id) : null;
+    if (objectStore && storageKey) await objectStore.put(storageKey, data, contentType);
 
-    await recordAudit(tx, [
-      {
-        userId: actorUserId,
-        action: 'PHOTO_ADD',
-        entityType: 'DAY_ENTRY',
-        entityId: dayEntryId,
-        field: 'photo',
-        toValue: created.id,
-      },
-    ]);
-    return { ok: true, value: toPublicPhoto(created) };
+    try {
+      const [created] = await tx
+        .insert(dayEntryPhotos)
+        .values({
+          id,
+          dayEntryId,
+          uploadedById: actorUserId,
+          contentType,
+          sizeBytes: data.length,
+          storageKey,
+          data: storageKey ? null : data,
+        })
+        .returning(metadataColumns);
+
+      await recordAudit(tx, [
+        {
+          userId: actorUserId,
+          action: 'PHOTO_ADD',
+          entityType: 'DAY_ENTRY',
+          entityId: dayEntryId,
+          field: 'photo',
+          toValue: created.id,
+        },
+      ]);
+      return { ok: true, value: toPublicPhoto(created) };
+    } catch (err) {
+      if (storageKey) await deleteObjectsQuietly([storageKey]);
+      throw err;
+    }
   });
 }
 
@@ -134,12 +163,41 @@ export async function getPhotoData(
   photoId: string,
 ): Promise<{ contentType: string; data: Buffer } | null> {
   const [row] = await db
-    .select({ contentType: dayEntryPhotos.contentType, data: dayEntryPhotos.data })
+    .select({
+      contentType: dayEntryPhotos.contentType,
+      data: dayEntryPhotos.data,
+      storageKey: dayEntryPhotos.storageKey,
+    })
     .from(dayEntryPhotos)
     .innerJoin(dayEntries, eq(dayEntries.id, dayEntryPhotos.dayEntryId))
     .where(and(eq(dayEntryPhotos.id, photoId), eq(dayEntries.weekPlanId, weekPlanId)))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+  if (row.data) return { contentType: row.contentType, data: row.data };
+  if (!objectStore) {
+    throw new Error(`Photo ${photoId} is stored in R2 but R2 is not configured`);
+  }
+  const data = await objectStore.get(row.storageKey!);
+  return data ? { contentType: row.contentType, data } : null;
+}
+
+/**
+ * R2 keys of the photos on these day entries — read BEFORE deleting the entries (the FK
+ * cascade removes the rows, not the objects), then passed to `deleteObjectsQuietly`
+ * once the delete has committed. Takes the caller's transaction.
+ */
+export async function storageKeysForEntries(
+  tx: Pick<typeof db, 'select'>,
+  dayEntryIds: string[],
+): Promise<string[]> {
+  if (dayEntryIds.length === 0) return [];
+  const rows = await tx
+    .select({ key: dayEntryPhotos.storageKey })
+    .from(dayEntryPhotos)
+    .where(
+      and(inArray(dayEntryPhotos.dayEntryId, dayEntryIds), isNotNull(dayEntryPhotos.storageKey)),
+    );
+  return rows.map((r) => r.key!);
 }
 
 export type DeletePhotoResult = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' };
@@ -153,9 +211,14 @@ export async function deletePhoto(
   photoId: string,
   actor: { sub: string; role: Role },
 ): Promise<DeletePhotoResult> {
-  return db.transaction(async (tx): Promise<DeletePhotoResult> => {
+  let storageKey: string | null = null;
+  const result = await db.transaction(async (tx): Promise<DeletePhotoResult> => {
     const [photo] = await tx
-      .select({ dayEntryId: dayEntryPhotos.dayEntryId, uploadedById: dayEntryPhotos.uploadedById })
+      .select({
+        dayEntryId: dayEntryPhotos.dayEntryId,
+        uploadedById: dayEntryPhotos.uploadedById,
+        storageKey: dayEntryPhotos.storageKey,
+      })
       .from(dayEntryPhotos)
       .innerJoin(dayEntries, eq(dayEntries.id, dayEntryPhotos.dayEntryId))
       .where(and(eq(dayEntryPhotos.id, photoId), eq(dayEntries.weekPlanId, weekPlanId)))
@@ -176,6 +239,10 @@ export async function deletePhoto(
         fromValue: photoId,
       },
     ]);
+    storageKey = photo.storageKey;
     return { ok: true };
   });
+  // Only after the audited row delete has committed.
+  if (storageKey) await deleteObjectsQuietly([storageKey]);
+  return result;
 }

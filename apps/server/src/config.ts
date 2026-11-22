@@ -77,4 +77,14 @@ export const config = {
   photoMaxBytes: Number(process.env.PHOTO_MAX_BYTES ?? 5 * 1024 * 1024),
   // Cap on photos attached to one recorded activity, so storage stays bounded.
   photoMaxPerEntry: Number(process.env.PHOTO_MAX_PER_ENTRY ?? 10),
+  // Cloudflare R2 (S3-compatible) bucket for uploaded files. Optional: with no credentials
+  // files stay in Postgres. `R2_ENDPOINT` overrides the endpoint derived from the account id
+  // (e.g. an EU-jurisdiction bucket: https://<account>.eu.r2.cloudflarestorage.com).
+  r2: {
+    accountId: process.env.R2_ACCOUNT_ID ?? '',
+    accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
+    bucket: process.env.R2_BUCKET ?? '',
+    endpoint: process.env.R2_ENDPOINT ?? '',
+  },
 } as const;

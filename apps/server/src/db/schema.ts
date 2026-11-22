@@ -2,6 +2,7 @@ import { ACCESS_REQUEST_STATUSES, OUTCOMES, ROLES, WEEKDAYS } from '@care/shared
 import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   customType,
   date,
   index,
@@ -147,12 +148,18 @@ export const dayEntryPhotos = pgTable(
     // Sniffed from the bytes server-side, never trusted from the client header.
     contentType: text('content_type').notNull(),
     sizeBytes: integer('size_bytes').notNull(),
-    // Stored in Postgres (no object store in v1): images are downscaled client-side and
-    // size-capped by config, so rows stay small. Never selected on list reads.
-    data: bytea('data').notNull(),
+    // Exactly one of these holds the image: `storageKey` names the object in Cloudflare R2
+    // (the default once R2 is configured), `data` holds it inline in Postgres (local dev,
+    // and rows uploaded before R2). Images are downscaled client-side and size-capped by
+    // config either way. `data` is never selected on list reads.
+    storageKey: text('storage_key'),
+    data: bytea('data'),
     createdAt,
   },
-  (t) => [index('day_entry_photos_day_entry_idx').on(t.dayEntryId)],
+  (t) => [
+    index('day_entry_photos_day_entry_idx').on(t.dayEntryId),
+    check('day_entry_photos_one_location', sql`(${t.data} IS NULL) <> (${t.storageKey} IS NULL)`),
+  ],
 );
 
 export const weekPlanTemplates = pgTable(

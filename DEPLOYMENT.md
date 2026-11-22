@@ -43,6 +43,27 @@ MANAGER role), the activity list and compliance defaults — no sample data. The
 password is randomly generated and **printed once** on first run; copy it somewhere safe
 immediately. Re-running leaves an existing admin's password unchanged.
 
+## 3b. File storage — Cloudflare R2 (recommended)
+
+Evidence photos go to a Cloudflare R2 bucket when it's configured; otherwise they're stored
+in Postgres, which will fill Neon's free 0.5 GB quickly.
+
+1. Cloudflare dashboard → **R2** → **Create bucket** (e.g. `care-tracker-files`). Leave
+   **public access off** — files are personal data and are only ever served through the API,
+   behind login and assignment checks. Pick the EU jurisdiction if data must stay in the EU
+   (then set `R2_ENDPOINT=https://<account-id>.eu.r2.cloudflarestorage.com`).
+2. **R2 → Manage API tokens → Create API token** with **Object Read & Write**, scoped to that
+   bucket only. Note the Access Key ID and Secret Access Key (shown once).
+3. In Render, set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_BUCKET`,
+   then redeploy. New uploads now go to R2.
+4. If photos were uploaded before R2, copy them across once from the Render **Shell**:
+
+   ```bash
+   bun run db:move-photos-to-r2
+   ```
+
+   Safe to re-run; already-moved photos are skipped. Old photos keep working until moved.
+
 ## 4. Verify
 
 Visit the Render URL:
