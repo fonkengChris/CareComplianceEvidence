@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import BrandLogo from '../components/BrandLogo';
 import { Button } from '../components/ui/button';
@@ -12,6 +12,9 @@ import { Label } from '../components/ui/label';
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  // Return to the page that sent them here (same-app paths only), else the dashboard.
+  const from = (useLocation().state as { from?: string } | null)?.from;
+  const returnTo = from?.startsWith('/') && !from.startsWith('//') ? from : '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +26,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate('/', { replace: true });
+      navigate(returnTo, { replace: true });
     } catch {
       setError('Invalid email or password');
     } finally {

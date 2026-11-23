@@ -42,6 +42,9 @@ mock.module('../services/auditor-access.service', () => accessMock);
 mock.module('../services/report.service', () => reportMock);
 mock.module('../services/week-plan.service', () => weekPlanMock);
 mock.module('../services/staff-assignment.service', () => assignmentMock);
+// Successful report reads are logged as VIEW rows (GDPR accountability).
+const auditMock = { recordView: mock((): Promise<void> => Promise.resolve()) };
+mock.module('../services/audit.service', () => auditMock);
 
 const controller = await import('./report.controller');
 

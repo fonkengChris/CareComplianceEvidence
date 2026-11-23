@@ -10,7 +10,7 @@ import { api } from './api';
  * run against controlled responses without touching the network.
  */
 
-type FetchInit = { method: string; body?: string };
+type FetchInit = { method: string; body?: string; headers: Record<string, string> };
 type Handler = (url: string, init: FetchInit) => Response | Promise<Response>;
 
 export function mockApi(handler: Handler): void {
@@ -25,9 +25,20 @@ export function mockApi(handler: Handler): void {
           ? config.data
           : JSON.stringify(config.data);
 
-    const res = await handler(url, { method, body });
+    const headers = Object.fromEntries(
+      Object.entries(config.headers?.toJSON?.() ?? {}).map(([k, v]) => [
+        k.toLowerCase(),
+        String(v),
+      ]),
+    );
+    const res = await handler(url, { method, body, headers });
     const data =
-      res.status === 204 || res.body === null ? null : await res.clone().json().catch(() => null);
+      res.status === 204 || res.body === null
+        ? null
+        : await res
+            .clone()
+            .json()
+            .catch(() => null);
 
     const response: AxiosResponse = {
       data,

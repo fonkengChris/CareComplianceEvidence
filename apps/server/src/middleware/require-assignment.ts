@@ -1,12 +1,13 @@
 import { isAssignmentScoped } from '@care/shared';
 import type { RequestHandler } from 'express';
 import { isStaffAssigned } from '../services/staff-assignment.service';
-import { serviceUserIdForPlan } from '../services/week-plan.service';
+import { isWithinStaffWindow, planScope } from '../services/week-plan.service';
 
 /**
  * Guard for the staff recording endpoints: a STAFF/KEY_WORKER user may only act on a plan whose
- * service user is in their supervision group. Resolves the plan (`:id`) to its service
- * user and checks the assignment; MANAGER bypasses (they cover everyone). Assumes
+ * service user is in their supervision group, and only within the recent-weeks window
+ * (`isWithinStaffWindow`). Resolves the plan (`:id`) to its service user and week and checks
+ * both; MANAGER bypasses (they cover everyone). Assumes
  * requireAuth ran first so `req.user` is set. Enforced HERE on the server, not just in
  * the UI (CLAUDE.md).
  */
@@ -22,12 +23,17 @@ export const requireAssignment: RequestHandler = async (req, res, next) => {
     return;
   }
 
-  const serviceUserId = await serviceUserIdForPlan(String(req.params.id));
-  if (serviceUserId === null) {
+  const scope = await planScope(String(req.params.id));
+  if (scope === null) {
     res.status(404).json({ error: 'Week plan not found' });
     return;
   }
-  if (!(await isStaffAssigned(user.sub, serviceUserId))) {
+  // Older weeks are outside staff reach (GDPR minimisation) — hidden as not found.
+  if (!isWithinStaffWindow(scope.weekCommencing)) {
+    res.status(404).json({ error: 'Week plan not found' });
+    return;
+  }
+  if (!(await isStaffAssigned(user.sub, scope.serviceUserId))) {
     res.status(403).json({
       error: 'Not assigned to this service user — if they live at your home, start a shift first',
     });

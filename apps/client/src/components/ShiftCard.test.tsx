@@ -59,11 +59,11 @@ function setup(state: { shift: ShiftSession | null; homes: Home[] }) {
   });
 }
 
-function renderCard() {
+function renderCard(checkIn: string | null = null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ShiftCard />
+      <ShiftCard checkIn={checkIn} />
     </QueryClientProvider>,
   );
 }
@@ -71,15 +71,18 @@ function renderCard() {
 afterEach(() => cleanup());
 
 describe('ShiftCard', () => {
-  it('starts a shift at the only home with one tap', async () => {
+  it('starts a shift at the only home once the on-site code is entered', async () => {
     setup({ shift: null, homes: [HOME_A] });
     renderCard();
-    fireEvent.click(await screen.findByRole('button', { name: 'Start shift at Riverside House' }));
+    const button = await screen.findByRole('button', { name: 'Start shift at Riverside House' });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText('Check-in code'), { target: { value: '12 34a56' } });
+    fireEvent.click(button);
     await waitFor(() =>
       expect(calls.some((c) => c.url === '/api/shifts' && c.method === 'POST')).toBe(true),
     );
     const post = calls.find((c) => c.url === '/api/shifts' && c.method === 'POST')!;
-    expect(JSON.parse(post.body!)).toEqual({ homeId: HOME_A.id });
+    expect(JSON.parse(post.body!)).toEqual({ homeId: HOME_A.id, code: '123456' });
     expect(await screen.findByText(/On shift at Riverside House until/)).toBeDefined();
   });
 
@@ -89,11 +92,38 @@ describe('ShiftCard', () => {
     const button = await screen.findByRole('button', { name: 'Start shift' });
     expect((button as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('Home'), { target: { value: HOME_B.id } });
+    fireEvent.change(screen.getByLabelText('Check-in code'), { target: { value: '654321' } });
     fireEvent.click(button);
     await waitFor(() => {
       const post = calls.find((c) => c.url === '/api/shifts' && c.method === 'POST');
-      expect(post && JSON.parse(post.body!)).toEqual({ homeId: HOME_B.id });
+      expect(post && JSON.parse(post.body!)).toEqual({ homeId: HOME_B.id, code: '654321' });
     });
+  });
+
+  it('prefills the home and code from a scanned display QR', async () => {
+    setup({ shift: null, homes: [HOME_A, HOME_B] });
+    renderCard(`${HOME_B.id}.246810`);
+    const code = (await screen.findByLabelText('Check-in code')) as HTMLInputElement;
+    expect(code.value).toBe('246810');
+    expect((screen.getByLabelText('Home') as HTMLSelectElement).value).toBe(HOME_B.id);
+  });
+
+  it('shows the server message for a wrong code', async () => {
+    setup({ shift: null, homes: [HOME_A] });
+    mockApi(async (url, init) => {
+      if (url === '/api/shifts/me') return json(null);
+      if (url === '/api/assignments/my-homes') return json([HOME_A]);
+      if (url === '/api/shifts' && init.method === 'POST') {
+        return json({ error: 'That code is not correct or has expired' }, 403);
+      }
+      return new Response(null, { status: 404 });
+    });
+    renderCard();
+    fireEvent.change(await screen.findByLabelText('Check-in code'), {
+      target: { value: '000000' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Start shift at Riverside House' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/not correct/);
   });
 
   it('ends the active shift', async () => {

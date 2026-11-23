@@ -64,6 +64,32 @@ in Postgres, which will fill Neon's free 0.5 GB quickly.
 
    Safe to re-run; already-moved photos are skipped. Old photos keep working until moved.
 
+## 3c. Check-in screens (required before staff can start shifts)
+
+Staff start a shift by entering the rotating 6-digit code shown on a **check-in screen** at
+their home. This proves they are on site, so a password alone never opens a home's records
+(GDPR). Set one up for each home before rollout. Until a home has one, a manager can start
+shifts for its staff from the home page.
+
+1. On a tablet/PC that stays at the home, sign in as a manager and open **Homes → the home →
+   Check-in screens**. Name the screen (e.g. "Office tablet") and click **Pair screen**.
+2. Click **Open on this device**, or open the one-time pairing link on the screen. Then sign out.
+   The screen keeps showing codes with nobody signed in. Its token is stored on that device
+   and can only fetch the code.
+3. Lost or replaced device: **Unpair** it on the home page. It stops working at once.
+
+Optional env tuning (defaults shown):
+
+| Env | Default | Meaning |
+|---|---|---|
+| `CHECK_IN_CODE_WINDOW_SECONDS` | `60` | How often the code changes (the previous code is also accepted) |
+| `CHECK_IN_MAX_FAILURES` / `CHECK_IN_FAILURE_WINDOW_MINUTES` | `5` / `15` | Wrong codes allowed before shift start is refused for the window |
+| `STAFF_HISTORY_WEEKS` | `2` | How many past weeks STAFF/KEY_WORKER can open and record against |
+| `ASSIGNMENT_DEFAULT_DAYS` | `90` | Default length of a direct staff↔service-user assignment |
+
+Migration `0011` gives every existing direct assignment an end date 90 days from the migration.
+Managers renew the ones still needed from each service user's page.
+
 ## 4. Verify
 
 Visit the Render URL:
@@ -72,6 +98,7 @@ Visit the Render URL:
 - Deep-link/refresh (e.g. `/service-users`) returns the app, not JSON.
 - `GET /health` returns `{"status":"ok","db":"up"}`.
 - Walk plan → record → report → PDF.
+- Pair a check-in screen for a home and start a shift as a staff member with its code.
 
 ## Notes
 

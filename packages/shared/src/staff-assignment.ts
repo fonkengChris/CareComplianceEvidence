@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { serviceUserSchema } from './service-user';
+import { userSchema } from './user';
 
 /**
  * The set of service users a staff member currently supervises (Phase 5). An
@@ -12,13 +13,27 @@ export const staffAssignmentSchema = z.object({
   id: z.string().uuid(),
   staffId: z.string().uuid(),
   serviceUserId: z.string().uuid(),
+  endsAt: z.string(),
   createdAt: z.string(),
 });
 
-/** Body for a manager assigning a staff member to a service user. */
+/**
+ * Body for a manager assigning a staff member to a service user. Direct links are time-limited
+ * (GDPR minimisation): `endsAt` is required and must be in the future; re-posting an existing
+ * pair renews it to the new date.
+ */
 export const staffAssignmentCreateSchema = z.object({
   staffId: z.string().uuid(),
   serviceUserId: z.string().uuid(),
+  endsAt: z
+    .string()
+    .datetime({ offset: true })
+    .refine((v) => new Date(v).getTime() > Date.now(), 'The end date must be in the future'),
+});
+
+/** A staff member directly assigned to a service user, with when that link lapses. */
+export const assignedStaffSchema = userSchema.extend({
+  assignmentEndsAt: z.string(),
 });
 
 /**
@@ -29,4 +44,5 @@ export const assignedServiceUserSchema = serviceUserSchema;
 
 export type StaffAssignment = z.infer<typeof staffAssignmentSchema>;
 export type StaffAssignmentCreate = z.infer<typeof staffAssignmentCreateSchema>;
+export type AssignedStaff = z.infer<typeof assignedStaffSchema>;
 export type AssignedServiceUser = z.infer<typeof assignedServiceUserSchema>;

@@ -16,6 +16,9 @@ const serviceMock = {
   startShift: mock<typeof realShift.startShift>(() =>
     Promise.resolve({ ok: false, reason: 'not-member' } as const),
   ),
+  startShiftFor: mock<typeof realShift.startShiftFor>(() =>
+    Promise.resolve({ ok: false, reason: 'not-member' } as const),
+  ),
   endShift: mock<typeof realShift.endShift>(() => Promise.resolve('ok' as const)),
   listActiveShiftsForHome: mock<typeof realShift.listActiveShiftsForHome>(() =>
     Promise.resolve([]),
@@ -74,6 +77,7 @@ function req(role: string, extra: Record<string, unknown> = {}): Request {
 afterEach(() => {
   serviceMock.getActiveShift.mockReset();
   serviceMock.startShift.mockReset();
+  serviceMock.startShiftFor.mockReset();
   serviceMock.endShift.mockReset();
   serviceMock.listActiveShiftsForHome.mockReset();
   serviceMock.listActiveShifts.mockReset();
@@ -91,27 +95,84 @@ describe('me', () => {
 });
 
 describe('start', () => {
-  it('400s on an invalid body', async () => {
-    const res = mockRes();
-    await controller.start(req('STAFF', { body: { homeId: 'nope' } }), res);
-    expect(res.statusCode).toBe(400);
+  const CODE = '123456';
+
+  it('400s on an invalid body or a missing/malformed code', async () => {
+    for (const body of [
+      { homeId: 'nope', code: CODE },
+      { homeId: HOME },
+      { homeId: HOME, code: '12ab56' },
+    ]) {
+      const res = mockRes();
+      await controller.start(req('STAFF', { body }), res);
+      expect(res.statusCode).toBe(400);
+    }
     expect(serviceMock.startShift).not.toHaveBeenCalled();
   });
 
   it("403s a home the caller isn't assigned to", async () => {
     serviceMock.startShift.mockResolvedValueOnce({ ok: false, reason: 'not-member' });
     const res = mockRes();
-    await controller.start(req('STAFF', { body: { homeId: HOME } }), res);
+    await controller.start(req('STAFF', { body: { homeId: HOME, code: CODE } }), res);
     expect(res.statusCode).toBe(403);
   });
 
-  it('201s with the new session', async () => {
+  it('403s a wrong or expired code', async () => {
+    serviceMock.startShift.mockResolvedValueOnce({ ok: false, reason: 'bad-code' });
+    const res = mockRes();
+    await controller.start(req('STAFF', { body: { homeId: HOME, code: CODE } }), res);
+    expect(res.statusCode).toBe(403);
+    expect((res.body as { error: string }).error).toMatch(/code/);
+  });
+
+  it('429s once too many wrong codes were entered', async () => {
+    serviceMock.startShift.mockResolvedValueOnce({ ok: false, reason: 'locked' });
+    const res = mockRes();
+    await controller.start(req('STAFF', { body: { homeId: HOME, code: CODE } }), res);
+    expect(res.statusCode).toBe(429);
+  });
+
+  it('201s with the new session, passing the code through', async () => {
     serviceMock.startShift.mockResolvedValueOnce({ ok: true, value: session });
     const res = mockRes();
-    await controller.start(req('KEY_WORKER', { body: { homeId: HOME } }), res);
-    expect(serviceMock.startShift).toHaveBeenCalledWith(STAFF, HOME);
+    await controller.start(req('KEY_WORKER', { body: { homeId: HOME, code: CODE } }), res);
+    expect(serviceMock.startShift).toHaveBeenCalledWith(STAFF, HOME, CODE);
     expect(res.statusCode).toBe(201);
     expect(res.body).toEqual(session);
+  });
+});
+
+describe('startFor', () => {
+  const MANAGER_ID = STAFF; // req() always uses STAFF as the caller id
+
+  it('400s an invalid body', async () => {
+    const res = mockRes();
+    await controller.startFor(req('MANAGER', { body: { staffId: 'nope', homeId: HOME } }), res);
+    expect(res.statusCode).toBe(400);
+    expect(serviceMock.startShiftFor).not.toHaveBeenCalled();
+  });
+
+  it('starts the shift for the staff member, with the manager as actor and the reason', async () => {
+    serviceMock.startShiftFor.mockResolvedValueOnce({ ok: true, value: session });
+    const res = mockRes();
+    await controller.startFor(
+      req('MANAGER', { body: { staffId: STAFF, homeId: HOME, reason: ' Display broken ' } }),
+      res,
+    );
+    expect(serviceMock.startShiftFor).toHaveBeenCalledWith(
+      MANAGER_ID,
+      STAFF,
+      HOME,
+      'Display broken',
+    );
+    expect(res.statusCode).toBe(201);
+  });
+
+  it('403s when the staff member is not in that home', async () => {
+    serviceMock.startShiftFor.mockResolvedValueOnce({ ok: false, reason: 'not-member' });
+    const res = mockRes();
+    await controller.startFor(req('MANAGER', { body: { staffId: STAFF, homeId: HOME } }), res);
+    expect(res.statusCode).toBe(403);
   });
 });
 

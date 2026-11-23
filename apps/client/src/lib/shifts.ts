@@ -1,4 +1,12 @@
-import type { Home, ShiftSession } from '@care/shared';
+import type {
+  CheckInDisplayCode,
+  Home,
+  HomeDisplay,
+  HomeDisplayPaired,
+  ShiftSession,
+  ShiftStart,
+  ShiftStartFor,
+} from '@care/shared';
 import { api } from './api';
 
 /**
@@ -19,10 +27,61 @@ export async function fetchMyHomes(): Promise<Home[]> {
   return data;
 }
 
-/** Start a shift at a home. */
-export async function startShift(homeId: string): Promise<ShiftSession> {
-  const { data } = await api.post<ShiftSession>('/api/shifts', { homeId });
+/** Start a shift at a home, proving presence with the code shown on the home's check-in display. */
+export async function startShift(input: ShiftStart): Promise<ShiftSession> {
+  const { data } = await api.post<ShiftSession>('/api/shifts', input);
   return data;
+}
+
+/** A manager starts a staff member's shift (fallback when the home's display isn't working). */
+export async function startShiftFor(input: ShiftStartFor): Promise<ShiftSession> {
+  const { data } = await api.post<ShiftSession>('/api/shifts/start-for', input);
+  return data;
+}
+
+/** A home's paired check-in displays (manager view). */
+export async function fetchHomeDisplays(homeId: string): Promise<HomeDisplay[]> {
+  const { data } = await api.get<HomeDisplay[]>(`/api/homes/${homeId}/displays`);
+  return data;
+}
+
+/** Pair a new check-in display at a home. The returned token is shown only this once. */
+export async function pairHomeDisplay(homeId: string, name: string): Promise<HomeDisplayPaired> {
+  const { data } = await api.post<HomeDisplayPaired>(`/api/homes/${homeId}/displays`, { name });
+  return data;
+}
+
+/** Unpair a check-in display; it stops showing codes at once. No body is returned (204). */
+export async function revokeHomeDisplay(homeId: string, displayId: string): Promise<void> {
+  await api.post(`/api/homes/${homeId}/displays/${displayId}/revoke`);
+}
+
+/** The current code for the home a display token is paired with (no user session needed). */
+export async function fetchDisplayCode(token: string): Promise<CheckInDisplayCode> {
+  const { data } = await api.get<CheckInDisplayCode>('/api/check-in-display/code', {
+    headers: { 'X-Display-Token': token },
+  });
+  return data;
+}
+
+/** The link that pairs a device as a home's check-in display (token in the hash, never sent to the server in logs). */
+export function displayPairingUrl(token: string, origin: string = window.location.origin): string {
+  return `${origin}/check-in-display#token=${token}`;
+}
+
+/** The link a display's QR code encodes: opens the app with the home and code prefilled. */
+export function checkInUrl(
+  homeId: string,
+  code: string,
+  origin: string = window.location.origin,
+): string {
+  return `${origin}/?checkin=${homeId}.${code}`;
+}
+
+/** Parse a `?checkin=<homeId>.<code>` value from a scanned display QR, or null. */
+export function parseCheckIn(value: string | null): { homeId: string; code: string } | null {
+  const match = value?.match(/^([0-9a-f-]{36})\.(\d{6})$/i);
+  return match ? { homeId: match[1]!, code: match[2]! } : null;
 }
 
 /** End a shift session (own for staff, any for a manager). No body is returned (204). */

@@ -4,12 +4,16 @@ import type { NextFunction, Request, Response } from 'express';
 
 /**
  * The guard resolves a plan to its service user and checks the caller's supervision
- * group. Both service dependencies are stubbed via mock.module — no DB. Covers: manager
- * bypass, assigned staff pass, unassigned staff 403, and unknown plan 404.
+ * group within the recent-weeks window. Both service dependencies are stubbed via mock.module —
+ * no DB. Covers: manager bypass, assigned staff pass, unassigned staff 403, unknown plan 404 and
+ * out-of-window plan 404.
  */
 
+type Scope = { serviceUserId: string; weekCommencing: string } | null;
+const inWindow = { serviceUserId: 'su-1', weekCommencing: '2026-11-23' };
 const weekPlanMock = {
-  serviceUserIdForPlan: mock((): Promise<string | null> => Promise.resolve('su-1')),
+  planScope: mock((): Promise<Scope> => Promise.resolve(inWindow)),
+  isWithinStaffWindow: mock((week: string): boolean => week >= '2026-11-09'),
 };
 const assignmentMock = {
   isStaffAssigned: mock((): Promise<boolean> => Promise.resolve(true)),
@@ -58,7 +62,7 @@ describe('requireAssignment', () => {
   });
 
   it('lets an assigned STAFF member through', async () => {
-    weekPlanMock.serviceUserIdForPlan.mockResolvedValueOnce('su-1');
+    weekPlanMock.planScope.mockResolvedValueOnce(inWindow);
     assignmentMock.isStaffAssigned.mockResolvedValueOnce(true);
     const { res, next } = await run(staff);
     expect(next).toHaveBeenCalledTimes(1);
@@ -66,7 +70,7 @@ describe('requireAssignment', () => {
   });
 
   it('403s an unassigned STAFF member', async () => {
-    weekPlanMock.serviceUserIdForPlan.mockResolvedValueOnce('su-1');
+    weekPlanMock.planScope.mockResolvedValueOnce(inWindow);
     assignmentMock.isStaffAssigned.mockResolvedValueOnce(false);
     const { res, next } = await run(staff);
     expect(res.statusCode).toBe(403);
@@ -74,7 +78,7 @@ describe('requireAssignment', () => {
   });
 
   it('403s a KEY_WORKER for a service user outside their caseload', async () => {
-    weekPlanMock.serviceUserIdForPlan.mockResolvedValueOnce('su-1');
+    weekPlanMock.planScope.mockResolvedValueOnce(inWindow);
     assignmentMock.isStaffAssigned.mockResolvedValueOnce(false);
     const { res, next } = await run({ ...staff, role: 'KEY_WORKER' });
     expect(res.statusCode).toBe(403);
@@ -82,10 +86,22 @@ describe('requireAssignment', () => {
   });
 
   it('404s when the plan is unknown', async () => {
-    weekPlanMock.serviceUserIdForPlan.mockResolvedValueOnce(null);
+    weekPlanMock.planScope.mockResolvedValueOnce(null);
     const { res, next } = await run(staff);
     expect(res.statusCode).toBe(404);
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it('404s a plan older than the staff history window, before the assignment check', async () => {
+    weekPlanMock.planScope.mockResolvedValueOnce({
+      serviceUserId: 'su-1',
+      weekCommencing: '2026-10-05',
+    });
+    assignmentMock.isStaffAssigned.mockClear();
+    const { res, next } = await run(staff);
+    expect(res.statusCode).toBe(404);
+    expect(next).not.toHaveBeenCalled();
+    expect(assignmentMock.isStaffAssigned).not.toHaveBeenCalled();
   });
 
   it('401s when there is no authenticated user', async () => {

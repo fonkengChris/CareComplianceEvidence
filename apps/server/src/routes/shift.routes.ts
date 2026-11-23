@@ -3,8 +3,9 @@ import * as shiftController from '../controllers/shift.controller';
 import { requireAuth, requireRole } from '../middleware/auth';
 
 /**
- * Shift routes. STAFF/KEY_WORKER start and end their own shift (which is what opens and closes
- * their home-path access); a MANAGER monitors who is on shift (all homes or one) and may end any
+ * Shift routes. STAFF/KEY_WORKER start (with the home's on-site check-in code) and end their own
+ * shift, which is what opens and closes their home-path access; a MANAGER may start one on a
+ * staff member's behalf when the home has no working display, monitors who is on shift (all homes or one) and may end any
  * session — `terminate` also signs the staff member out (unauthorised access).
  * AUDITOR has no access. Enforced here, not just in the UI (CLAUDE.md).
  */
@@ -24,4 +25,5 @@ const manager = requireRole('MANAGER');
 
 shiftRouter.get('/active', requireAuth, manager, shiftController.listActive);
 shiftRouter.get('/home/:homeId', requireAuth, manager, shiftController.listForHome);
+shiftRouter.post('/start-for', requireAuth, manager, shiftController.startFor);
 shiftRouter.post('/:id/terminate', requireAuth, manager, shiftController.terminate);

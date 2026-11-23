@@ -14,7 +14,8 @@ import {
   detectReviewHint,
   weekPlanSchema,
 } from '@care/shared';
-import { and, asc, eq, inArray, or } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, or } from 'drizzle-orm';
+import { config } from '../config';
 import { db } from '../db';
 import { isUniqueViolation } from '../db/errors';
 import { dayEntries, serviceUsers, staffAssignments, weekPlans } from '../db/schema';
@@ -126,7 +127,7 @@ export async function listWeekPlansForStaff(
 ): Promise<WeekPlan[]> {
   const homeIds = await activeShiftHomeIdsForStaff(staffId);
   const reach = or(
-    eq(staffAssignments.staffId, staffId),
+    and(eq(staffAssignments.staffId, staffId), gt(staffAssignments.endsAt, new Date())),
     homeIds.length > 0 ? inArray(serviceUsers.homeId, homeIds) : undefined,
   );
   const rows = await db
@@ -141,20 +142,50 @@ export async function listWeekPlansForStaff(
       ),
     )
     .where(
-      serviceUserId === undefined ? reach : and(reach, eq(weekPlans.serviceUserId, serviceUserId)),
+      and(
+        reach,
+        gte(weekPlans.weekCommencing, staffWindowStart()),
+        serviceUserId === undefined ? undefined : eq(weekPlans.serviceUserId, serviceUserId),
+      ),
     )
     .orderBy(asc(weekPlans.weekCommencing));
   return rows.map((r) => toPublicWeekPlan(r.plan));
 }
 
-/** The service user a plan belongs to, or null if the plan id is unknown. */
-export async function serviceUserIdForPlan(weekPlanId: string): Promise<string | null> {
+/**
+ * The earliest week (a Monday, YYYY-MM-DD) STAFF/KEY_WORKER may open or record against: the
+ * current week back `config.staffHistoryWeeks` weeks (GDPR minimisation — front-line staff need
+ * recent weeks to record, not a resident's whole history). Later weeks are always in window.
+ */
+export function staffWindowStart(
+  now: Date = new Date(),
+  weeks: number = config.staffHistoryWeeks,
+): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) - weeks * 7);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Whether a plan's week is inside the STAFF/KEY_WORKER window (see `staffWindowStart`). */
+export function isWithinStaffWindow(weekCommencing: string, now: Date = new Date()): boolean {
+  return weekCommencing >= staffWindowStart(now);
+}
+
+/** The service user and week a plan belongs to, or null if the plan id is unknown. */
+export async function planScope(
+  weekPlanId: string,
+): Promise<{ serviceUserId: string; weekCommencing: string } | null> {
   const [row] = await db
-    .select({ serviceUserId: weekPlans.serviceUserId })
+    .select({ serviceUserId: weekPlans.serviceUserId, weekCommencing: weekPlans.weekCommencing })
     .from(weekPlans)
     .where(eq(weekPlans.id, weekPlanId))
     .limit(1);
-  return row?.serviceUserId ?? null;
+  return row ?? null;
+}
+
+/** The service user a plan belongs to, or null if the plan id is unknown. */
+export async function serviceUserIdForPlan(weekPlanId: string): Promise<string | null> {
+  return (await planScope(weekPlanId))?.serviceUserId ?? null;
 }
 
 /**

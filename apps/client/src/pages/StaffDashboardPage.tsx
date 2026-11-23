@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { CalendarDays, ChevronRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ShiftCard } from '../components/ShiftCard';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { fetchMyAssignments } from '../lib/staff-assignments';
@@ -13,6 +13,7 @@ import { fetchWeekPlans } from '../lib/week-plans';
  * is shown — residents reached through a home only appear while the caller is on shift there.
  */
 export default function StaffDashboardPage() {
+  const [searchParams] = useSearchParams();
   const assignments = useQuery({ queryKey: ['assignments', 'me'], queryFn: fetchMyAssignments });
   const weekPlans = useQuery({ queryKey: ['week-plans'], queryFn: () => fetchWeekPlans() });
 
@@ -23,7 +24,7 @@ export default function StaffDashboardPage() {
         <p className="text-sm text-muted-foreground">Your assigned service users and week plans.</p>
       </div>
 
-      <ShiftCard />
+      <ShiftCard checkIn={searchParams.get('checkin')} />
 
       {(assignments.isLoading || weekPlans.isLoading) && (
         <p role="status" className="text-muted-foreground">

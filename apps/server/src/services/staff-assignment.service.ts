@@ -1,4 +1,4 @@
-import type { ServiceUser, User } from '@care/shared';
+import type { AssignedStaff, ServiceUser } from '@care/shared';
 import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '../db';
 import {
@@ -8,13 +8,15 @@ import {
   staffHomeAssignments,
   users,
 } from '../db/schema';
+import { recordAudit } from './audit.service';
 import { toPublicUser } from './auth.service';
 import { toPublicServiceUser } from './service-user.service';
 
 /**
  * Staff-assignment service — the only layer that touches the DB for the supervision
  * group (which service users a staff member covers). A staff member's reach is the
- * UNION of two paths: direct `(staffId, serviceUserId)` rows AND the homes they are
+ * UNION of two paths: unexpired direct `(staffId, serviceUserId)` rows (each has an `endsAt` a
+ * manager renews) AND the homes they are
  * currently ON SHIFT at. Home membership (`staff_home_assignments`) alone only makes a staff
  * member eligible to start a shift there — the home path is live only while they hold an
  * active `shift_sessions` row for that home, so off-shift staff cannot open residents'
@@ -66,7 +68,7 @@ export async function activeShiftHomeIdsForStaff(staffId: string): Promise<strin
  */
 async function listReachable(staffId: string, homeIds: string[]): Promise<ServiceUser[]> {
   const reach = or(
-    eq(staffAssignments.staffId, staffId),
+    and(eq(staffAssignments.staffId, staffId), gt(staffAssignments.endsAt, new Date())),
     homeIds.length > 0 ? inArray(serviceUsers.homeId, homeIds) : undefined,
   );
   const rows = await db
@@ -101,32 +103,109 @@ export async function listCaseloadIds(staffId: string): Promise<string[]> {
   return rows.map((su) => su.id);
 }
 
-/** The staff members assigned to a service user, ordered by name — the manager's view. */
-export async function listStaffForServiceUser(serviceUserId: string): Promise<User[]> {
+/**
+ * The staff directly assigned to a service user, with when each link lapses, ordered by name —
+ * the manager's view. Expired links are included (marked by a past `assignmentEndsAt`) so a
+ * manager can see and renew them.
+ */
+export async function listStaffForServiceUser(serviceUserId: string): Promise<AssignedStaff[]> {
   const rows = await db
-    .select({ user: users })
+    .select({ user: users, endsAt: staffAssignments.endsAt })
     .from(staffAssignments)
     .innerJoin(users, eq(users.id, staffAssignments.staffId))
     .where(eq(staffAssignments.serviceUserId, serviceUserId))
     .orderBy(asc(users.name));
-  return rows.map((r) => toPublicUser(r.user));
+  return rows.map((r) => ({ ...toPublicUser(r.user), assignmentEndsAt: r.endsAt.toISOString() }));
+}
+
+/** "<staff name> until <YYYY-MM-DD>" — the audit text for a direct link. */
+function assignmentText(staffName: string, endsAt: Date): string {
+  return `${staffName} until ${endsAt.toISOString().slice(0, 10)}`;
 }
 
 /**
- * Assign a staff member to a service user. Idempotent: re-assigning an existing pair is
- * a no-op (unique `staff_assignments_staff_service_user`), so this always succeeds.
+ * Assign a staff member to a service user until `endsAt`, or renew an existing link to that date
+ * (unique `staff_assignments_staff_service_user`). Audited against the service user as
+ * ASSIGN (from the previous link, if any → the new one). Unknown staff → `not-found`.
  */
-export async function assign(staffId: string, serviceUserId: string): Promise<void> {
-  await db.insert(staffAssignments).values({ staffId, serviceUserId }).onConflictDoNothing();
+export async function assign(
+  staffId: string,
+  serviceUserId: string,
+  endsAt: Date,
+  actorId: string,
+): Promise<'ok' | 'not-found'> {
+  return db.transaction(async (tx) => {
+    const [staff] = await tx
+      .select({ name: users.name })
+      .from(users)
+      .where(eq(users.id, staffId))
+      .limit(1);
+    if (!staff) return 'not-found';
+    const [existing] = await tx
+      .select({ endsAt: staffAssignments.endsAt })
+      .from(staffAssignments)
+      .where(
+        and(
+          eq(staffAssignments.staffId, staffId),
+          eq(staffAssignments.serviceUserId, serviceUserId),
+        ),
+      )
+      .limit(1);
+    await tx
+      .insert(staffAssignments)
+      .values({ staffId, serviceUserId, endsAt })
+      .onConflictDoUpdate({
+        target: [staffAssignments.staffId, staffAssignments.serviceUserId],
+        set: { endsAt },
+      });
+    await recordAudit(tx, [
+      {
+        userId: actorId,
+        action: 'ASSIGN',
+        entityType: 'SERVICE_USER',
+        entityId: serviceUserId,
+        field: 'staffAssignment',
+        fromValue: existing ? assignmentText(staff.name, existing.endsAt) : null,
+        toValue: assignmentText(staff.name, endsAt),
+      },
+    ]);
+    return 'ok';
+  });
 }
 
-/** Remove a staff member from a service user's supervision group. Idempotent. */
-export async function unassign(staffId: string, serviceUserId: string): Promise<void> {
-  await db
-    .delete(staffAssignments)
-    .where(
-      and(eq(staffAssignments.staffId, staffId), eq(staffAssignments.serviceUserId, serviceUserId)),
-    );
+/** Remove a staff member from a service user's supervision group. Idempotent; audited if removed. */
+export async function unassign(
+  staffId: string,
+  serviceUserId: string,
+  actorId: string,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const removed = await tx
+      .delete(staffAssignments)
+      .where(
+        and(
+          eq(staffAssignments.staffId, staffId),
+          eq(staffAssignments.serviceUserId, serviceUserId),
+        ),
+      )
+      .returning({ endsAt: staffAssignments.endsAt });
+    if (removed.length === 0) return;
+    const [staff] = await tx
+      .select({ name: users.name })
+      .from(users)
+      .where(eq(users.id, staffId))
+      .limit(1);
+    await recordAudit(tx, [
+      {
+        userId: actorId,
+        action: 'UNASSIGN',
+        entityType: 'SERVICE_USER',
+        entityId: serviceUserId,
+        field: 'staffAssignment',
+        fromValue: assignmentText(staff?.name ?? staffId, removed[0]!.endsAt),
+      },
+    ]);
+  });
 }
 
 /** Whether there is a direct assignment, or the service user's home is one of `homeIds`. */
@@ -139,7 +218,11 @@ async function reaches(
     .select({ id: staffAssignments.id })
     .from(staffAssignments)
     .where(
-      and(eq(staffAssignments.staffId, staffId), eq(staffAssignments.serviceUserId, serviceUserId)),
+      and(
+        eq(staffAssignments.staffId, staffId),
+        eq(staffAssignments.serviceUserId, serviceUserId),
+        gt(staffAssignments.endsAt, new Date()),
+      ),
     )
     .limit(1);
   if (direct !== undefined) return true;

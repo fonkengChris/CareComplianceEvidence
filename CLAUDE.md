@@ -37,6 +37,10 @@ WeekPlanTemplate (id, serviceUserId [unique], notes)  — one reusable planner p
 
 ShiftSession (id, staffId, homeId, startedAt, expiresAt, endedAt, endedById)
   — time-bound home access: ≤1 open row per staff; active = not ended AND expiresAt > now
+Home (…, checkInSecret)  — server-only HMAC key for the rotating on-site check-in code; never serialised
+HomeDisplayDevice (id, homeId, name, tokenHash, createdById, lastSeenAt, revokedAt)
+  — manager-paired check-in screen; its token can only fetch the home's current code
+StaffAssignment (id, staffId, serviceUserId, endsAt)  — direct link; lapses at endsAt unless renewed
 
 ActivityType (id, name, active)  — standardised list, admin-maintained
 User (id, name, role, passwordHash)  — role: STAFF | KEY_WORKER | MANAGER | AUDITOR
@@ -65,15 +69,29 @@ Rules to preserve when touching this model:
 | **MANAGER** | Full CRUD on service users, week plans, activities; view summaries/reports | — |
 | **AUDITOR** | Reports page only — for the service users a manager **assigned** them on their user form (GDPR: an auditor never lists or learns of any other service user) | Any write; any other read (dashboard, service users, homes, week plans, audit history, settings, or any list of service users) |
 
-**Home access is shift-gated.** Being assigned to a home only makes STAFF/KEY_WORKER *eligible*; they
-reach that home's service users (dashboard, week plans, recording) only while they hold an active
-`ShiftSession` there — self-started on the staff dashboard, audited (SHIFT_START/SHIFT_END), capped
-at `SHIFT_MAX_HOURS` (default 12), and ended on logout/deactivation or by a manager. Managers
-monitor live shifts on `/shifts` (and per home); "End & sign out" (`POST /shifts/:id/terminate`,
-optional audited reason) ends the shift AND revokes the person's refresh tokens. There is no
-automatic "unauthorised" detection — that call is the manager's (no rota in v1). Direct
-per-service-user assignments stay permanent. KEY_WORKER *reports* use the full caseload (direct +
-home membership), not shift-gated. All of this resolves centrally in `staff-assignment.service.ts`.
+**Home access is shift-gated, and starting a shift needs proof of presence (GDPR).** Being assigned to a
+home only makes STAFF/KEY_WORKER *eligible*; they reach that home's service users (dashboard, week
+plans, recording) only while they hold an active `ShiftSession` there. Self-starting a shift needs the
+home's **rotating 6-digit on-site check-in code** (TOTP-style HMAC of the server-only
+`homes.checkInSecret`, `auth/check-in-code.ts`) shown on a manager-paired **check-in screen**
+(`HomeDisplayDevice`, public `/check-in-display` page, authenticated only by its own revocable
+`X-Display-Token`, which can fetch the code and nothing else). Wrong codes are audited
+(SHIFT_CODE_FAILED) and lock out after `CHECK_IN_MAX_FAILURES`. A manager may start a shift for
+someone (`POST /shifts/start-for`, audited with reason) when a screen isn't working. Shifts are audited
+(SHIFT_START/SHIFT_END), capped at `SHIFT_MAX_HOURS` (default 12), and ended on logout/deactivation or
+by a manager. Managers monitor live shifts on `/shifts` (and per home); "End & sign out"
+(`POST /shifts/:id/terminate`) ends the shift AND revokes refresh tokens. No rota in v1.
+Direct per-service-user assignments are **time-limited** (`staff_assignments.endsAt`, required on
+assign, renewable, audited ASSIGN/UNASSIGN against the service user); expired links grant nothing.
+STAFF/KEY_WORKER only open/record week plans from the current week back `STAFF_HISTORY_WEEKS`
+(default 2) — `isWithinStaffWindow` in `week-plan.service.ts`, enforced in `getById`, the staff list
+and `requireAssignment`. KEY_WORKER *reports* use the full caseload (unexpired direct + home
+membership), not shift-gated or windowed. Reach resolves centrally in `staff-assignment.service.ts`.
+
+**Reads of resident records are audited.** Every successful open of a week plan, evidence photo,
+week report or period report writes a `VIEW` audit row (`recordView`, entityType SERVICE_USER,
+field = WEEK_PLAN/PHOTO/WEEK_REPORT/PERIOD_REPORT) for every role. Managers see them under "Access
+history" on the service user's page; the global `/audit` feed leaves VIEW rows out.
 
 Every new API route must have explicit role middleware. Never rely on frontend hiding alone.
 

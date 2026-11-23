@@ -4,7 +4,9 @@ import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { CheckInDisplaysCard } from '../components/CheckInDisplaysCard';
 import { ShiftMonitorTable } from '../components/ShiftMonitorTable';
+import { StartShiftForForm } from '../components/StartShiftForForm';
 import { Badge } from '../components/ui/badge';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -20,7 +22,8 @@ import { fetchUsers } from '../lib/users';
 /**
  * Home detail view. Shows the home's service users and — for managers — who is on shift
  * now and the staff assigned to it. Assigning a staff member to the home lets them start a
- * shift there; only while on shift do they reach its service users (enforced server-side).
+ * shift there — with the code from the home's paired check-in screen, or by a manager here as a
+ * fallback; only while on shift do they reach its service users (enforced server-side).
  * A manager can end anyone's shift and sign them out from here (unauthorised access). Managers also get
  * Edit and Deactivate/Reactivate (soft delete). Auditors see it read-only.
  */
@@ -171,11 +174,14 @@ export default function HomeDetailPage() {
           <CardHeader>
             <CardTitle>On shift now</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-6">
             <ShiftMonitorTable homeId={data.id} />
+            {data.active && <StartShiftForForm homeId={data.id} staff={assignedStaff.data ?? []} />}
           </CardContent>
         </Card>
       )}
+
+      {isManager && data.active && <CheckInDisplaysCard homeId={data.id} />}
 
       {isManager && (
         <Card>
@@ -184,8 +190,8 @@ export default function HomeDetailPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
-              Staff assigned here can start a shift at this home. Only while on shift can they view
-              and record for its service users.
+              Staff assigned here can start a shift at this home using the code on its check-in
+              screen. Only while on shift can they view and record for its service users.
             </p>
             {(assign.isError || unassign.isError) && (
               <p role="alert" className="text-sm font-medium text-destructive">

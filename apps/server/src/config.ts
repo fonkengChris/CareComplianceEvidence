@@ -72,6 +72,18 @@ export const config = {
   // Hard cap on a shift session's length: home-path access lapses automatically after this
   // many hours even if the staff member forgets to tap "End shift".
   shiftMaxHours: Number(process.env.SHIFT_MAX_HOURS ?? 12),
+  // How long each on-site check-in code (shown on a home's paired display) stays current. The
+  // previous code is still accepted, so a staff member always has at least this long to type it.
+  checkInCodeWindowSeconds: Number(process.env.CHECK_IN_CODE_WINDOW_SECONDS ?? 60),
+  // Wrong check-in codes a staff member may enter per window before shift start is refused
+  // until the window passes (brute-force guard for the 6-digit code).
+  checkInMaxFailures: Number(process.env.CHECK_IN_MAX_FAILURES ?? 5),
+  checkInFailureWindowMinutes: Number(process.env.CHECK_IN_FAILURE_WINDOW_MINUTES ?? 15),
+  // GDPR minimisation: STAFF/KEY_WORKER open and record week plans only from the current week
+  // back this many weeks (future weeks too). Managers and key-worker reports are unaffected.
+  staffHistoryWeeks: Number(process.env.STAFF_HISTORY_WEEKS ?? 2),
+  // Default length of a direct staff↔service-user assignment before it must be renewed.
+  assignmentDefaultDays: Number(process.env.ASSIGNMENT_DEFAULT_DAYS ?? 90),
   // Cap on one uploaded evidence photo (bytes). The client downscales to ~1600px JPEG first,
   // so real uploads are a few hundred KB; this bounds what lands in Postgres.
   photoMaxBytes: Number(process.env.PHOTO_MAX_BYTES ?? 5 * 1024 * 1024),

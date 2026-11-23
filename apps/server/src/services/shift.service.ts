@@ -1,14 +1,23 @@
 import { type ShiftSession, shiftSessionSchema } from '@care/shared';
-import { and, asc, eq, gt, isNull } from 'drizzle-orm';
+import { and, asc, count, eq, gt, isNull } from 'drizzle-orm';
 import { db } from '../db';
-import { homes, refreshTokens, shiftSessions, staffHomeAssignments, users } from '../db/schema';
+import { verifyCheckInCode } from '../auth/check-in-code';
+import {
+  auditLogs,
+  homes,
+  refreshTokens,
+  shiftSessions,
+  staffHomeAssignments,
+  users,
+} from '../db/schema';
 import { config } from '../config';
 import { type AuditWrite, recordAudit } from './audit.service';
 
 /**
  * Shift service — the only layer that touches `shift_sessions`. Home membership only makes a
- * staff member ELIGIBLE to work at a home; starting a shift here is what opens their home-path
- * access (resolved in staff-assignment.service), and ending it — or the session reaching its
+ * staff member ELIGIBLE to work at a home; starting a shift here — with the home's on-site
+ * check-in code as proof of presence, or by a manager on their behalf — is what opens their
+ * home-path access (resolved in staff-assignment.service), and ending it — or the session reaching its
  * `expiresAt` cap — closes it again. Every start/end is written to the audit trail in the same
  * transaction, so "who could see this resident, and when" is always answerable.
  */
@@ -121,46 +130,124 @@ async function closeOpen(
 }
 
 export type StartShiftResult =
-  { ok: true; value: ShiftSession } | { ok: false; reason: 'not-member' };
+  { ok: true; value: ShiftSession } | { ok: false; reason: 'not-member' | 'bad-code' | 'locked' };
+
+type Membership = { homeName: string; staffName: string; checkInSecret: string };
+
+/** The staff member's (active) membership of an (active) home, or null. */
+async function findMembership(tx: Tx, staffId: string, homeId: string): Promise<Membership | null> {
+  const [member] = await tx
+    .select({ homeName: homes.name, staffName: users.name, checkInSecret: homes.checkInSecret })
+    .from(staffHomeAssignments)
+    .innerJoin(homes, eq(homes.id, staffHomeAssignments.homeId))
+    .innerJoin(users, eq(users.id, staffHomeAssignments.staffId))
+    .where(
+      and(
+        eq(staffHomeAssignments.staffId, staffId),
+        eq(staffHomeAssignments.homeId, homeId),
+        eq(homes.active, true),
+        eq(users.active, true),
+      ),
+    )
+    .limit(1);
+  return member ?? null;
+}
+
+/** How many wrong check-in codes the staff member entered in the current failure window. */
+async function recentCodeFailures(tx: Tx, staffId: string, now: Date): Promise<number> {
+  const since = new Date(now.getTime() - config.checkInFailureWindowMinutes * 60 * 1000);
+  const [row] = await tx
+    .select({ n: count() })
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.userId, staffId),
+        eq(auditLogs.action, 'SHIFT_CODE_FAILED'),
+        gt(auditLogs.createdAt, since),
+      ),
+    );
+  return row?.n ?? 0;
+}
 
 /**
- * Start a shift at one of the staff member's (active) homes. Any open session is closed first,
- * so a staff member is only ever on shift at one home. The new session lapses automatically
- * after `config.shiftMaxHours`.
+ * Open a session for `staffId` at `homeId` (closing any other open one first, so a staff member is
+ * only ever on shift at one home) and audit SHIFT_START by `actorId`.
  */
-export async function startShift(staffId: string, homeId: string): Promise<StartShiftResult> {
+async function openShift(
+  tx: Tx,
+  staffId: string,
+  homeId: string,
+  actorId: string,
+  member: Membership,
+  note: string,
+): Promise<ShiftSession> {
+  const now = new Date();
+  await closeOpen(tx, staffId, actorId, now);
+  const [row] = await tx
+    .insert(shiftSessions)
+    .values({ staffId, homeId, startedAt: now, expiresAt: shiftExpiry(now) })
+    .returning();
+  await recordAudit(tx, [
+    {
+      userId: actorId,
+      action: 'SHIFT_START',
+      entityType: 'SHIFT_SESSION',
+      entityId: row!.id,
+      toValue: note,
+    },
+  ]);
+  return toPublicShift(row!, member.homeName, member.staffName);
+}
+
+/**
+ * Start a shift at one of the staff member's (active) homes. `code` must be the home's current
+ * on-site check-in code (shown on its paired display), proving the staff member is physically
+ * there — a login alone never opens a home's records. Wrong codes are audited
+ * (SHIFT_CODE_FAILED) and, after `config.checkInMaxFailures` within the failure window, further
+ * attempts are refused outright. The new session lapses after `config.shiftMaxHours`.
+ */
+export async function startShift(
+  staffId: string,
+  homeId: string,
+  code: string,
+): Promise<StartShiftResult> {
   return db.transaction(async (tx) => {
-    const [member] = await tx
-      .select({ homeName: homes.name, staffName: users.name })
-      .from(staffHomeAssignments)
-      .innerJoin(homes, eq(homes.id, staffHomeAssignments.homeId))
-      .innerJoin(users, eq(users.id, staffHomeAssignments.staffId))
-      .where(
-        and(
-          eq(staffHomeAssignments.staffId, staffId),
-          eq(staffHomeAssignments.homeId, homeId),
-          eq(homes.active, true),
-        ),
-      )
-      .limit(1);
+    const member = await findMembership(tx, staffId, homeId);
     if (!member) return { ok: false, reason: 'not-member' } as const;
 
     const now = new Date();
-    await closeOpen(tx, staffId, staffId, now);
-    const [row] = await tx
-      .insert(shiftSessions)
-      .values({ staffId, homeId, startedAt: now, expiresAt: shiftExpiry(now) })
-      .returning();
-    await recordAudit(tx, [
-      {
-        userId: staffId,
-        action: 'SHIFT_START',
-        entityType: 'SHIFT_SESSION',
-        entityId: row!.id,
-        toValue: member.homeName,
-      },
-    ]);
-    return { ok: true, value: toPublicShift(row!, member.homeName, member.staffName) } as const;
+    if ((await recentCodeFailures(tx, staffId, now)) >= config.checkInMaxFailures) {
+      return { ok: false, reason: 'locked' } as const;
+    }
+    if (!verifyCheckInCode(member.checkInSecret, code, now)) {
+      await recordAudit(tx, [
+        { userId: staffId, action: 'SHIFT_CODE_FAILED', entityType: 'HOME', entityId: homeId },
+      ]);
+      return { ok: false, reason: 'bad-code' } as const;
+    }
+
+    const value = await openShift(tx, staffId, homeId, staffId, member, member.homeName);
+    return { ok: true, value } as const;
+  });
+}
+
+/**
+ * A manager starts a shift on a staff member's behalf — the fallback when a home has no working
+ * check-in display. The staff member must still be an (active) member of the (active) home; the
+ * audit row names the manager as actor, with the optional reason.
+ */
+export async function startShiftFor(
+  managerId: string,
+  staffId: string,
+  homeId: string,
+  reason?: string,
+): Promise<StartShiftResult> {
+  return db.transaction(async (tx) => {
+    const member = await findMembership(tx, staffId, homeId);
+    if (!member) return { ok: false, reason: 'not-member' } as const;
+    const note = `${member.homeName} — started by manager${reason ? `: ${reason}` : ''}`;
+    const value = await openShift(tx, staffId, homeId, managerId, member, note);
+    return { ok: true, value } as const;
   });
 }
 

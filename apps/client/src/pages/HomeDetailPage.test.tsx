@@ -55,16 +55,45 @@ function staffUser(id: string, name: string) {
 const ALEX = staffUser('66666666-6666-4666-8666-666666666666', 'Alex Able');
 const BLAIR = staffUser('77777777-7777-4777-8777-777777777777', 'Blair Baker');
 
+const DISPLAY = {
+  id: '88888888-8888-4888-8888-888888888888',
+  homeId: HOME_ID,
+  name: 'Office tablet',
+  createdAt: '2026-11-23T09:00:00.000Z',
+  lastSeenAt: null,
+  revokedAt: null,
+};
+
 let shifts: ShiftSession[] = [];
 let ended: string[] = [];
 let assigned: unknown[] = [];
+let displays: (typeof DISPLAY)[] = [];
+let homeStaff: ReturnType<typeof staffUser>[] = [];
+let posts: { url: string; body: unknown }[] = [];
 
 beforeEach(() => {
   setAccessToken(null);
   shifts = [session];
   ended = [];
   assigned = [];
+  displays = [];
+  homeStaff = [];
+  posts = [];
   mockApi(async (url, init) => {
+    if (init.method === 'POST' && url !== '/api/auth/refresh') {
+      posts.push({ url, body: init.body ? JSON.parse(init.body) : undefined });
+    }
+    if (url === `/api/homes/${HOME_ID}/displays` && init.method === 'GET') return json(displays);
+    if (url === `/api/homes/${HOME_ID}/displays` && init.method === 'POST') {
+      displays = [DISPLAY];
+      return json({ display: DISPLAY, token: 'raw-pairing-token' });
+    }
+    if (url.endsWith('/revoke')) {
+      displays = [];
+      return new Response(null, { status: 204 });
+    }
+    if (url === '/api/shifts/start-for') return json(session);
+    if (url === `/api/assignments/home/${HOME_ID}`) return json(homeStaff);
     if (url === '/api/auth/refresh') {
       return json({
         accessToken: 't',
@@ -153,5 +182,49 @@ describe('HomeDetailPage — assigning staff', () => {
     expect((screen.getByLabelText('Alex Able') as HTMLInputElement).checked).toBe(true);
     expect((screen.getByLabelText('Blair Baker') as HTMLInputElement).checked).toBe(true);
     expect(screen.getByRole('button', { name: 'Assign selected (2)' })).toBeDefined();
+  });
+});
+
+describe('HomeDetailPage — check-in screens', () => {
+  it('warns when no screen is paired, then pairs one and shows its one-time link', async () => {
+    renderPage();
+    expect(await screen.findByText(/No check-in screen yet/)).toBeDefined();
+    fireEvent.change(screen.getByLabelText('New screen name'), {
+      target: { value: 'Office tablet' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Pair screen' }));
+    const link = (await screen.findByLabelText('Pairing link')) as HTMLInputElement;
+    expect(link.value).toMatch(/\/check-in-display#token=raw-pairing-token$/);
+    expect(posts).toContainEqual({
+      url: `/api/homes/${HOME_ID}/displays`,
+      body: { name: 'Office tablet' },
+    });
+  });
+
+  it('unpairs a screen', async () => {
+    displays = [DISPLAY];
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Unpair Office tablet' }));
+    await waitFor(() =>
+      expect(
+        posts.some((p) => p.url === `/api/homes/${HOME_ID}/displays/${DISPLAY.id}/revoke`),
+      ).toBe(true),
+    );
+  });
+
+  it("lets a manager start an assigned staff member's shift with a reason", async () => {
+    homeStaff = [ALEX];
+    renderPage();
+    fireEvent.change(await screen.findByLabelText('Staff member'), { target: { value: ALEX.id } });
+    fireEvent.change(screen.getByLabelText('Reason (optional)'), {
+      target: { value: 'Tablet offline' },
+    });
+    fireEvent.submit(screen.getByRole('form', { name: 'Start a shift for a staff member' }));
+    await waitFor(() =>
+      expect(posts).toContainEqual({
+        url: '/api/shifts/start-for',
+        body: { staffId: ALEX.id, homeId: HOME_ID, reason: 'Tablet offline' },
+      }),
+    );
   });
 });

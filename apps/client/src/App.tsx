@@ -3,6 +3,7 @@ import { ProtectedRoute } from './auth/ProtectedRoute';
 import AppShell from './components/AppShell';
 import AccountPage from './pages/AccountPage';
 import AuditHistoryPage from './pages/AuditHistoryPage';
+import CheckInDisplayPage from './pages/CheckInDisplayPage';
 import DashboardPage from './pages/DashboardPage';
 import HomeDetailPage from './pages/HomeDetailPage';
 import HomeFormPage from './pages/HomeFormPage';
@@ -28,6 +29,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      {/* A home's paired check-in screen: no user session, its own display token instead. */}
+      <Route path="/check-in-display" element={<CheckInDisplayPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<DashboardPage />} />

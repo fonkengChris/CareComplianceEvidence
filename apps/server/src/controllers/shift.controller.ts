@@ -1,4 +1,9 @@
-import { shiftMonitorQuerySchema, shiftStartSchema, shiftTerminateSchema } from '@care/shared';
+import {
+  shiftMonitorQuerySchema,
+  shiftStartForSchema,
+  shiftStartSchema,
+  shiftTerminateSchema,
+} from '@care/shared';
 import type { Request, Response } from 'express';
 import * as shiftService from '../services/shift.service';
 
@@ -13,16 +18,42 @@ export async function me(req: Request, res: Response): Promise<void> {
   res.json(await shiftService.getActiveShift(req.user!.sub));
 }
 
-/** POST /shifts — start a shift at one of the caller's homes. */
+/** POST /shifts — start a shift at one of the caller's homes, proving presence with the on-site code. */
 export async function start(req: Request, res: Response): Promise<void> {
   const parsed = shiftStartSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Enter the 6-digit code shown at the home' });
+    return;
+  }
+  const result = await shiftService.startShift(req.user!.sub, parsed.data.homeId, parsed.data.code);
+  if (!result.ok) {
+    const error = {
+      'not-member': 'You are not assigned to this home',
+      'bad-code': 'That code is not correct or has expired — check the display at the home',
+      locked: 'Too many wrong codes — wait a few minutes or ask a manager to start your shift',
+    }[result.reason];
+    res.status(result.reason === 'locked' ? 429 : 403).json({ error });
+    return;
+  }
+  res.status(201).json(result.value);
+}
+
+/** POST /shifts/start-for — a manager starts a staff member's shift (no working display). */
+export async function startFor(req: Request, res: Response): Promise<void> {
+  const parsed = shiftStartForSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid shift' });
     return;
   }
-  const result = await shiftService.startShift(req.user!.sub, parsed.data.homeId);
+  const { staffId, homeId, reason } = parsed.data;
+  const result = await shiftService.startShiftFor(
+    req.user!.sub,
+    staffId,
+    homeId,
+    reason || undefined,
+  );
   if (!result.ok) {
-    res.status(403).json({ error: 'You are not assigned to this home' });
+    res.status(403).json({ error: 'That staff member is not assigned to this home' });
     return;
   }
   res.status(201).json(result.value);

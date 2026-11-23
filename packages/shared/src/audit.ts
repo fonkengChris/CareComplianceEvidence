@@ -30,7 +30,15 @@ export const AUDIT_ENTITY_TYPES = [
   'SERVICE_USER',
   'AUDITOR_ACCESS',
   'SHIFT_SESSION',
+  'HOME',
 ] as const;
+
+/**
+ * What a VIEW row (action 'VIEW', entityType SERVICE_USER, entityId = the resident) records was
+ * opened — so "who accessed this resident's records, and when" is answerable (GDPR accountability).
+ */
+export const AUDIT_VIEW_KINDS = ['WEEK_PLAN', 'PHOTO', 'WEEK_REPORT', 'PERIOD_REPORT'] as const;
+export type AuditViewKind = (typeof AUDIT_VIEW_KINDS)[number];
 export const auditEntityTypeSchema = z.enum(AUDIT_ENTITY_TYPES);
 export type AuditEntityType = z.infer<typeof auditEntityTypeSchema>;
 

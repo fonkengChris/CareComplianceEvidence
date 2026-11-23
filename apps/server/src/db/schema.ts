@@ -50,9 +50,34 @@ export const homes = pgTable('homes', {
   address: text('address'),
   // Soft-disabled via `active` (never hard deleted) so service-user history survives.
   active: boolean('active').notNull().default(true),
+  // HMAC key for the rotating on-site check-in code that staff must enter to start a shift
+  // here (proof of presence). Server-only: never serialised to any client.
+  checkInSecret: text('check_in_secret')
+    .notNull()
+    .default(sql`replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '')`),
   createdAt,
   updatedAt,
 });
+
+export const homeDisplayDevices = pgTable(
+  'home_display_devices',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // A manager-paired screen at a home (office tablet/PC) that shows the rotating check-in
+    // code. Its token can fetch that code and nothing else; revoke to unpair.
+    homeId: uuid('home_id')
+      .notNull()
+      .references(() => homes.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    // Store the hash only, never the raw token (same pattern as refresh_tokens).
+    tokenHash: text('token_hash').notNull().unique(),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt,
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [index('home_display_devices_home_idx').on(t.homeId)],
+);
 
 export const serviceUsers = pgTable('service_users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -216,6 +241,11 @@ export const staffAssignments = pgTable(
     serviceUserId: uuid('service_user_id')
       .notNull()
       .references(() => serviceUsers.id, { onDelete: 'cascade' }),
+    // Direct links are time-limited (GDPR minimisation): access lapses at `endsAt` unless a
+    // manager renews it. Re-assigning an existing pair moves the date.
+    endsAt: timestamp('ends_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '90 days'`),
     createdAt,
   },
   (t) => [
@@ -366,6 +396,14 @@ export const homesRelations = relations(homes, ({ many }) => ({
   serviceUsers: many(serviceUsers),
   staffHomeAssignments: many(staffHomeAssignments),
   shiftSessions: many(shiftSessions),
+  displayDevices: many(homeDisplayDevices),
+}));
+
+export const homeDisplayDevicesRelations = relations(homeDisplayDevices, ({ one }) => ({
+  home: one(homes, {
+    fields: [homeDisplayDevices.homeId],
+    references: [homes.id],
+  }),
 }));
 
 export const serviceUsersRelations = relations(serviceUsers, ({ one, many }) => ({

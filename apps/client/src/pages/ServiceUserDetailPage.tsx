@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, LayoutTemplate, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { AccessHistoryCard } from '../components/AccessHistoryCard';
 import { Badge } from '../components/ui/badge';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -13,7 +14,15 @@ import { Select } from '../components/ui/select';
 import { toErrorMessage } from '../lib/errors';
 import { fetchHomes } from '../lib/homes';
 import { fetchServiceUser, setServiceUserActive } from '../lib/service-users';
-import { assignStaff, fetchStaffForServiceUser, unassignStaff } from '../lib/staff-assignments';
+import {
+  ASSIGNMENT_DEFAULT_DAYS,
+  assignStaff,
+  dateInDays,
+  daysUntil,
+  endOfDayIso,
+  fetchStaffForServiceUser,
+  unassignStaff,
+} from '../lib/staff-assignments';
 import { fetchUsers } from '../lib/users';
 import { generateWeekFromTemplate } from '../lib/week-plan-templates';
 import { fetchWeekPlans } from '../lib/week-plans';
@@ -30,6 +39,7 @@ export default function ServiceUserDetailPage() {
   const queryClient = useQueryClient();
   const isManager = user?.role === 'MANAGER';
   const [staffToAdd, setStaffToAdd] = useState('');
+  const [endsOn, setEndsOn] = useState(() => dateInDays(ASSIGNMENT_DEFAULT_DAYS));
   const [generateWeek, setGenerateWeek] = useState('');
 
   const { data, isLoading, isError } = useQuery({
@@ -76,8 +86,11 @@ export default function ServiceUserDetailPage() {
     enabled: isManager,
   });
 
+  // Direct links are time-limited: assigning sets an end date; "Renew" re-posts the pair with a
+  // fresh default end date (the server updates it and audits the change).
   const assign = useMutation({
-    mutationFn: (staffId: string) => assignStaff(staffId, id!),
+    mutationFn: ({ staffId, until }: { staffId: string; until: string }) =>
+      assignStaff(staffId, id!, endOfDayIso(until)),
     onSuccess: () => {
       setStaffToAdd('');
       queryClient.invalidateQueries({ queryKey: ['assignments', 'service-user', id] });
@@ -256,6 +269,10 @@ export default function ServiceUserDetailPage() {
             <CardTitle>Assigned staff</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground">
+              Direct assignments give access without a shift, so each one ends on a set date. Renew
+              it if they still need access.
+            </p>
             {(assign.isError || unassign.isError) && (
               <p role="alert" className="text-sm font-medium text-destructive">
                 {toErrorMessage(assign.error ?? unassign.error)}
@@ -266,21 +283,55 @@ export default function ServiceUserDetailPage() {
             )}
             {assignedStaff.data && assignedStaff.data.length > 0 && (
               <ul className="flex flex-col gap-2">
-                {assignedStaff.data.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between gap-3">
-                    <span className="text-sm">{s.name}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => unassign.mutate(s.id)}
-                      disabled={unassign.isPending}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      Remove
-                    </Button>
-                  </li>
-                ))}
+                {assignedStaff.data.map((s) => {
+                  const left = daysUntil(s.assignmentEndsAt);
+                  const until = new Date(s.assignmentEndsAt).toLocaleDateString([], {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  });
+                  return (
+                    <li key={s.id} className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="flex flex-wrap items-center gap-2 text-sm">
+                        {s.name}
+                        {left < 0 ? (
+                          <Badge variant="secondary">Expired {until}</Badge>
+                        ) : left <= 14 ? (
+                          <Badge variant="warning">Ends {until}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">until {until}</span>
+                        )}
+                      </span>
+                      <span className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Renew ${s.name} for ${ASSIGNMENT_DEFAULT_DAYS} days`}
+                          onClick={() =>
+                            assign.mutate({
+                              staffId: s.id,
+                              until: dateInDays(ASSIGNMENT_DEFAULT_DAYS),
+                            })
+                          }
+                          disabled={assign.isPending}
+                        >
+                          Renew
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => unassign.mutate(s.id)}
+                          disabled={unassign.isPending}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          Remove
+                        </Button>
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
 
@@ -302,10 +353,20 @@ export default function ServiceUserDetailPage() {
                   ))}
                 </Select>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="assign-until">Until</Label>
+                <Input
+                  id="assign-until"
+                  type="date"
+                  min={dateInDays(1)}
+                  value={endsOn}
+                  onChange={(e) => setEndsOn(e.target.value)}
+                />
+              </div>
               <Button
                 type="button"
-                onClick={() => assign.mutate(staffToAdd)}
-                disabled={!staffToAdd || assign.isPending}
+                onClick={() => assign.mutate({ staffId: staffToAdd, until: endsOn })}
+                disabled={!staffToAdd || !endsOn || assign.isPending}
               >
                 {assign.isPending ? 'Assigning…' : 'Assign'}
               </Button>
@@ -313,6 +374,8 @@ export default function ServiceUserDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {isManager && <AccessHistoryCard serviceUserId={data.id} />}
     </section>
   );
 }

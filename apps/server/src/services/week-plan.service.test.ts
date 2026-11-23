@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import { dayEntries, weekPlans } from '../db/schema';
 import {
+  isWithinStaffWindow,
+  staffWindowStart,
   buildEntryInserts,
   planEntryChanges,
   sortDayEntries,
@@ -151,5 +153,25 @@ describe('planEntryChanges', () => {
     );
     expect(updates.map((u) => u.lineNumber)).toEqual([1]);
     expect(inserts).toEqual([{ day: 'MON', lineNumber: 2 }]);
+  });
+});
+
+describe('staffWindowStart / isWithinStaffWindow', () => {
+  // Monday 23 Nov 2026 is the current week; Wednesday and Sunday land in the same week.
+  const wednesday = new Date('2026-11-25T15:00:00.000Z');
+
+  it("is the current week's Monday minus N weeks", () => {
+    expect(staffWindowStart(wednesday, 2)).toBe('2026-11-09');
+    expect(staffWindowStart(wednesday, 0)).toBe('2026-11-23');
+    expect(staffWindowStart(new Date('2026-11-29T23:00:00.000Z'), 2)).toBe('2026-11-09');
+    expect(staffWindowStart(new Date('2026-11-23T00:00:00.000Z'), 1)).toBe('2026-11-16');
+  });
+
+  it('keeps recent and future weeks, drops older ones', () => {
+    const now = wednesday;
+    expect(isWithinStaffWindow('2026-11-30', now)).toBe(true); // next week (pre-planned)
+    expect(isWithinStaffWindow('2026-11-23', now)).toBe(true);
+    expect(isWithinStaffWindow(staffWindowStart(now), now)).toBe(true);
+    expect(isWithinStaffWindow('2026-11-02', now)).toBe(false);
   });
 });

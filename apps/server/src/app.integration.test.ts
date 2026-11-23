@@ -203,6 +203,30 @@ describe('shift routes are role-scoped', () => {
   });
 });
 
+describe('on-site check-in routes are role-scoped', () => {
+  it('lets only MANAGER start a shift for someone else, or pair/list/revoke displays', async () => {
+    for (const role of ['STAFF', 'KEY_WORKER', 'AUDITOR'] as const) {
+      const token = await tokenFor(role);
+      expect(await request('POST', '/api/shifts/start-for', { token, body: {} })).toBe(403);
+      expect(await request('GET', `/api/homes/${SERVICE_USER}/displays`, { token })).toBe(403);
+      expect(
+        await request('POST', `/api/homes/${SERVICE_USER}/displays`, { token, body: {} }),
+      ).toBe(403);
+      expect(
+        await request('POST', `/api/homes/${SERVICE_USER}/displays/${SERVICE_USER}/revoke`, {
+          token,
+        }),
+      ).toBe(403);
+    }
+  });
+
+  it('401s the display code endpoint without a display token — a user session is not one', async () => {
+    expect(await request('GET', '/api/check-in-display/code')).toBe(401);
+    const manager = await tokenFor('MANAGER');
+    expect(await request('GET', '/api/check-in-display/code', { token: manager })).toBe(401);
+  });
+});
+
 describe('unauthenticated requests are rejected', () => {
   it('401s a protected route with no token', async () => {
     expect(await request('GET', '/api/service-users')).toBe(401);
@@ -212,5 +236,7 @@ describe('unauthenticated requests are rejected', () => {
     expect(await request('PUT', '/api/auth/me/password', { body: {} })).toBe(401);
     expect(await request('GET', '/api/shifts/me')).toBe(401);
     expect(await request('POST', '/api/shifts', { body: {} })).toBe(401);
+    expect(await request('POST', '/api/shifts/start-for', { body: {} })).toBe(401);
+    expect(await request('GET', `/api/homes/${SERVICE_USER}/displays`)).toBe(401);
   });
 });

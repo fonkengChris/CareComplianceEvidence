@@ -14,6 +14,7 @@ const baseRow: HomeRow = {
   name: 'Riverside House',
   address: '1 Riverside Way',
   active: true,
+  checkInSecret: 'server-only-secret',
   createdAt: new Date('2026-08-08T00:00:00.000Z'),
   updatedAt: new Date('2026-08-08T00:00:00.000Z'),
 };

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as homeController from '../controllers/home.controller';
+import * as displayController from '../controllers/home-display.controller';
 import { requireAuth, requireRole } from '../middleware/auth';
 
 /**
@@ -21,3 +22,12 @@ homeRouter.post('/', requireAuth, canManage, homeController.create);
 homeRouter.put('/:id', requireAuth, canManage, homeController.update);
 homeRouter.patch('/:id/active', requireAuth, canManage, homeController.setActive);
 homeRouter.delete('/:id', requireAuth, canManage, homeController.remove);
+// Check-in displays (on-site shift codes): pairing, listing and revoking are MANAGER-only.
+homeRouter.get('/:id/displays', requireAuth, canManage, displayController.list);
+homeRouter.post('/:id/displays', requireAuth, canManage, displayController.pair);
+homeRouter.post(
+  '/:id/displays/:displayId/revoke',
+  requireAuth,
+  canManage,
+  displayController.revoke,
+);

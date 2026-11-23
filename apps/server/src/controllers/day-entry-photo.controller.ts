@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
+import { recordView } from '../services/audit.service';
 import * as photoService from '../services/day-entry-photo.service';
+import { planScope } from '../services/week-plan.service';
 
 /**
  * Evidence-photo controllers: HTTP glue only (CLAUDE.md layering). The route's role +
@@ -43,6 +45,9 @@ export async function getImage(req: Request, res: Response): Promise<void> {
     res.status(404).json({ error: 'Photo not found' });
     return;
   }
+  const scope = await planScope(String(req.params.id));
+  if (scope)
+    await recordView(req.user!.sub, scope.serviceUserId, 'PHOTO', String(req.params.photoId));
   // Personal data about a service user: never cache in shared or browser caches, and never
   // let the browser second-guess the (server-sniffed) type.
   res.set({

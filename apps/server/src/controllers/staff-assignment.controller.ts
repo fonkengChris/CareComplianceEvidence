@@ -25,14 +25,24 @@ export async function listForServiceUser(req: Request, res: Response): Promise<v
   res.json(rows);
 }
 
-/** POST /assignments — add a staff member to a service user's group. Idempotent. */
+/** POST /assignments — add a staff member to a service user's group until `endsAt`, or renew. */
 export async function create(req: Request, res: Response): Promise<void> {
   const parsed = staffAssignmentCreateSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid assignment' });
     return;
   }
-  await staffAssignmentService.assign(parsed.data.staffId, parsed.data.serviceUserId);
+  const { staffId, serviceUserId, endsAt } = parsed.data;
+  const result = await staffAssignmentService.assign(
+    staffId,
+    serviceUserId,
+    new Date(endsAt),
+    req.user!.sub,
+  );
+  if (result === 'not-found') {
+    res.status(404).json({ error: 'Staff member not found' });
+    return;
+  }
   res.status(204).end();
 }
 
@@ -41,6 +51,7 @@ export async function remove(req: Request, res: Response): Promise<void> {
   await staffAssignmentService.unassign(
     String(req.params.staffId),
     String(req.params.serviceUserId),
+    req.user!.sub,
   );
   res.status(204).end();
 }

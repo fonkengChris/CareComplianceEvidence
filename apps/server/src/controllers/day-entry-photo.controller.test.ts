@@ -24,6 +24,18 @@ const serviceMock = {
 };
 
 mock.module('../services/day-entry-photo.service', () => serviceMock);
+// Serving an image is logged as a VIEW of the plan's service user (GDPR accountability).
+const auditMock = { recordView: mock((): Promise<void> => Promise.resolve()) };
+const weekPlanMock = {
+  planScope: mock(() =>
+    Promise.resolve({
+      serviceUserId: '22222222-2222-4222-8222-222222222222',
+      weekCommencing: '2026-10-26',
+    }),
+  ),
+};
+mock.module('../services/audit.service', () => auditMock);
+mock.module('../services/week-plan.service', () => weekPlanMock);
 
 const controller = await import('./day-entry-photo.controller');
 
@@ -118,6 +130,12 @@ describe('getImage', () => {
     expect(res.headers['Content-Type']).toBe('image/jpeg');
     expect(res.headers['Cache-Control']).toBe('private, no-store');
     expect(res.headers['X-Content-Type-Options']).toBe('nosniff');
+    expect(auditMock.recordView).toHaveBeenCalledWith(
+      user.sub,
+      '22222222-2222-4222-8222-222222222222',
+      'PHOTO',
+      expect.any(String),
+    );
   });
 });
 

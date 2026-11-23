@@ -1,5 +1,5 @@
 import type { Role } from '@care/shared';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 
 /**
@@ -9,6 +9,7 @@ import { useAuth } from './AuthContext';
  */
 export function ProtectedRoute({ roles }: { roles?: Role[] }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -17,7 +18,12 @@ export function ProtectedRoute({ roles }: { roles?: Role[] }) {
       </p>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  // Remember where they were heading (e.g. a scanned check-in QR's ?checkin=…) for after login.
+  if (!user) {
+    return (
+      <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />
+    );
+  }
   if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
   return <Outlet />;
 }

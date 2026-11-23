@@ -37,14 +37,19 @@ const serviceMock = {
   addStaffDayEntry: mock((): Promise<RecordResult> =>
     Promise.resolve({ ok: true, value: planWithEntries }),
   ),
+  isWithinStaffWindow: mock((): boolean => true),
 };
 
 // getById scopes STAFF via the assignment guard; the manager path never calls it, but
 // stub it so importing the controller resolves.
 const assignmentMock = { isStaffAssigned: mock((): Promise<boolean> => Promise.resolve(true)) };
 
+// Successful plan reads are logged as VIEW rows (GDPR accountability).
+const auditMock = { recordView: mock((): Promise<void> => Promise.resolve()) };
+
 mock.module('../services/week-plan.service', () => serviceMock);
 mock.module('../services/staff-assignment.service', () => assignmentMock);
+mock.module('../services/audit.service', () => auditMock);
 
 const controller = await import('./week-plan.controller');
 
@@ -154,6 +159,28 @@ describe('getById', () => {
     );
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual(planWithEntries);
+    expect(auditMock.recordView).toHaveBeenCalledWith(
+      managerUser.sub,
+      planWithEntries.serviceUserId,
+      'WEEK_PLAN',
+      planWithEntries.weekCommencing,
+    );
+  });
+
+  it('404s for a STAFF caller when the plan is older than their history window', async () => {
+    serviceMock.getWeekPlan.mockResolvedValueOnce(planWithEntries);
+    serviceMock.isWithinStaffWindow.mockReturnValueOnce(false);
+    auditMock.recordView.mockClear();
+    const res = mockRes();
+    await controller.getById(
+      {
+        params: { id: plan.id },
+        user: { ...managerUser, role: 'STAFF' as const },
+      } as unknown as Request,
+      res,
+    );
+    expect(res.statusCode).toBe(404);
+    expect(auditMock.recordView).not.toHaveBeenCalled();
   });
 
   it('404s for a STAFF caller when the plan is outside their group', async () => {

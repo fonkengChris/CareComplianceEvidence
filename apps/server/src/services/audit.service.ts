@@ -1,5 +1,10 @@
-import { type AuditEntityType, type AuditLogView, auditLogViewSchema } from '@care/shared';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import {
+  type AuditEntityType,
+  type AuditLogView,
+  type AuditViewKind,
+  auditLogViewSchema,
+} from '@care/shared';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '../db';
 import {
   auditLogs,
@@ -79,12 +84,35 @@ export async function recordAudit(tx: Tx, writes: AuditWrite[]): Promise<void> {
   );
 }
 
+/**
+ * Record that someone opened a service user's records (GDPR accountability: "who accessed this
+ * resident, and when"). One VIEW row per successful read of a plan, photo or report, for every
+ * role. `ref` is the plan id or report period. Standalone (not in a transaction): a read has no
+ * write to be atomic with.
+ */
+export async function recordView(
+  actorId: string,
+  serviceUserId: string,
+  kind: AuditViewKind,
+  ref: string,
+): Promise<void> {
+  await db.insert(auditLogs).values({
+    userId: actorId,
+    action: 'VIEW',
+    entityType: 'SERVICE_USER',
+    entityId: serviceUserId,
+    field: kind,
+    toValue: ref,
+  });
+}
+
 type AuditRow = typeof auditLogs.$inferSelect;
 
 /**
  * Resolve a human-readable label per audited entity for a set of rows, in two batched
  * lookups: service users by name; day entries as "<service user> — <day>" via their plan;
- * auditor access requests as "<auditor> → <service user>"; shift sessions as "<staff> @ <home>".
+ * auditor access requests as "<auditor> → <service user>"; shift sessions as "<staff> @ <home>";
+ * homes by name.
  * Returns a map keyed `"<entityType>:<entityId>"`; missing entities simply have no label.
  */
 async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string>> {
@@ -101,6 +129,9 @@ async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string
     .map((r) => r.entityId as string);
   const shiftIds = rows
     .filter((r) => r.entityType === 'SHIFT_SESSION' && r.entityId)
+    .map((r) => r.entityId as string);
+  const homeIds = rows
+    .filter((r) => r.entityType === 'HOME' && r.entityId)
     .map((r) => r.entityId as string);
 
   if (serviceUserIds.length > 0) {
@@ -139,6 +170,14 @@ async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string
       .innerJoin(homes, eq(homes.id, shiftSessions.homeId))
       .where(inArray(shiftSessions.id, shiftIds));
     for (const s of found) labels.set(`SHIFT_SESSION:${s.id}`, `${s.staff} @ ${s.home}`);
+  }
+
+  if (homeIds.length > 0) {
+    const found = await db
+      .select({ id: homes.id, name: homes.name })
+      .from(homes)
+      .where(inArray(homes.id, homeIds));
+    for (const h of found) labels.set(`HOME:${h.id}`, h.name);
   }
 
   return labels;
@@ -181,21 +220,34 @@ async function actorNamesFor(rows: AuditRow[]): Promise<Map<string, string>> {
   return new Map(found.map((u) => [u.id, u.name]));
 }
 
-/** The audit history feed: the most recent changes across the system, newest first. */
+/**
+ * The audit history feed: the most recent changes across the system, newest first. VIEW rows are
+ * left out (they would drown the changes); they appear in each service user's own history.
+ */
 export async function listRecentAudit(limit = 100): Promise<AuditLogView[]> {
-  const rows = await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(limit);
+  const rows = await db
+    .select()
+    .from(auditLogs)
+    .where(ne(auditLogs.action, 'VIEW'))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(limit);
   return toViews(rows, await actorNamesFor(rows));
 }
 
-/** The change history for one entity, newest first — uses the `(entityType, entityId)` index. */
+/**
+ * The history for one entity, newest first — uses the `(entityType, entityId)` index. For a
+ * service user this includes who viewed their records (VIEW rows), so it is capped.
+ */
 export async function listAuditForEntity(
   entityType: AuditEntityType,
   entityId: string,
+  limit = 500,
 ): Promise<AuditLogView[]> {
   const rows = await db
     .select()
     .from(auditLogs)
     .where(and(eq(auditLogs.entityType, entityType), eq(auditLogs.entityId, entityId)))
-    .orderBy(desc(auditLogs.createdAt));
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(limit);
   return toViews(rows, await actorNamesFor(rows));
 }

@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { recordView } from '../services/audit.service';
 import * as auditorAccessService from '../services/auditor-access.service';
 import * as reportService from '../services/report.service';
 import * as staffAssignmentService from '../services/staff-assignment.service';
@@ -39,18 +40,17 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_WEEKS = 53;
 
 export async function getWeekPlanReport(req: Request, res: Response): Promise<void> {
-  if (req.user!.role !== 'MANAGER') {
-    const serviceUserId = await serviceUserIdForPlan(String(req.params.id));
-    if (serviceUserId === null || !(await canSeeServiceUser(req, serviceUserId))) {
-      res.status(404).json({ error: 'Week plan not found' });
-      return;
-    }
+  const serviceUserId = await serviceUserIdForPlan(String(req.params.id));
+  if (serviceUserId === null || !(await canSeeServiceUser(req, serviceUserId))) {
+    res.status(404).json({ error: 'Week plan not found' });
+    return;
   }
   const found = await reportService.getWeekPlanReport(String(req.params.id));
   if (!found) {
     res.status(404).json({ error: 'Week plan not found' });
     return;
   }
+  await recordView(req.user!.sub, serviceUserId, 'WEEK_REPORT', String(req.params.id));
   res.json(found);
 }
 
@@ -102,6 +102,12 @@ export async function getServiceUserPeriodReport(req: Request, res: Response): P
     res.status(404).json({ error: 'Service user not found' });
     return;
   }
+  await recordView(
+    req.user!.sub,
+    String(req.params.id),
+    'PERIOD_REPORT',
+    `${range.from}..${range.to}`,
+  );
   res.json(found);
 }
 

@@ -8,6 +8,7 @@ import {
   weekPlanUpdateSchema,
 } from '@care/shared';
 import type { Request, Response } from 'express';
+import { recordView } from '../services/audit.service';
 import { isStaffAssigned } from '../services/staff-assignment.service';
 import * as weekPlanService from '../services/week-plan.service';
 
@@ -35,14 +36,17 @@ export async function getById(req: Request, res: Response): Promise<void> {
     res.status(404).json({ error: 'Week plan not found' });
     return;
   }
-  // Out-of-group plans are hidden from STAFF/KEY_WORKER as 404 (never reveal existence).
+  // Out-of-group and out-of-window (older) plans are hidden from STAFF/KEY_WORKER as 404 (never
+  // reveal existence).
   if (
     isAssignmentScoped(req.user!.role) &&
-    !(await isStaffAssigned(req.user!.sub, found.serviceUserId))
+    (!weekPlanService.isWithinStaffWindow(found.weekCommencing) ||
+      !(await isStaffAssigned(req.user!.sub, found.serviceUserId)))
   ) {
     res.status(404).json({ error: 'Week plan not found' });
     return;
   }
+  await recordView(req.user!.sub, found.serviceUserId, 'WEEK_PLAN', found.weekCommencing);
   res.json(found);
 }
 
