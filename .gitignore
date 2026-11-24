@@ -15,3 +15,6 @@ Weekly_Activity_System_Dashboard_v3.xlsx
 staff-credentials.ods
 *staff-passwords*.csv
 staff-credentials.pdf
+
+# Word documents (paper check templates etc.) — kept locally, not in the repo
+*.docx
