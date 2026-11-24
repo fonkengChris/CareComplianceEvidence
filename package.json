@@ -17,6 +17,7 @@
     "db:seed-staff": "bun run --filter '@care/server' db:seed-staff",
     "db:seed-homes": "bun run --filter '@care/server' db:seed-homes",
     "db:seed-service-users": "bun run --filter '@care/server' db:seed-service-users",
+    "db:seed-checks": "bun run --filter '@care/server' db:seed-checks",
     "db:move-photos-to-r2": "bun run --filter '@care/server' db:move-photos-to-r2",
     "db:push": "bun run --filter '@care/server' db:push"
   },

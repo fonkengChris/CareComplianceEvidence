@@ -25,3 +25,4 @@ export * from './auditor-access';
 export * from './summary';
 export * from './report';
 export * from './ai';
+export * from './house-check';

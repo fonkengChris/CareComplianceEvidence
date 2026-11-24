@@ -1,4 +1,12 @@
-import { ACCESS_REQUEST_STATUSES, OUTCOMES, ROLES, WEEKDAYS } from '@care/shared';
+import {
+  ACCESS_REQUEST_STATUSES,
+  CHECK_SCHEDULE_KINDS,
+  type CheckAnswers,
+  type CheckDefinition,
+  OUTCOMES,
+  ROLES,
+  WEEKDAYS,
+} from '@care/shared';
 import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
@@ -7,6 +15,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -31,6 +40,7 @@ export const roleEnum = pgEnum('role', ROLES);
 export const weekdayEnum = pgEnum('weekday', WEEKDAYS);
 export const outcomeEnum = pgEnum('outcome', OUTCOMES);
 export const accessRequestStatusEnum = pgEnum('access_request_status', ACCESS_REQUEST_STATUSES);
+export const checkScheduleKindEnum = pgEnum('check_schedule_kind', CHECK_SCHEDULE_KINDS);
 
 const createdAt = timestamp('created_at', { withTimezone: true }).defaultNow().notNull();
 const updatedAt = timestamp('updated_at', { withTimezone: true }).defaultNow().notNull();
@@ -390,6 +400,62 @@ export const auditLogs = pgTable(
   },
   // "Show the history of this record" — the primary audit read path.
   (t) => [index('audit_logs_entity_idx').on(t.entityType, t.entityId)],
+);
+
+// House checks (daily checks, sharps, room checks…): one manager-editable template per check,
+// with a single schedule that applies to every home. Never hard deleted — `active` retires one
+// so its submissions keep their history.
+export const checkTemplates = pgTable('check_templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull().unique(),
+  scheduleKind: checkScheduleKindEnum('schedule_kind').notNull(),
+  // Weekdays a WEEKLY check falls on (ignored for DAILY).
+  scheduleDays: weekdayEnum('schedule_days')
+    .array()
+    .notNull()
+    .default(sql`'{}'::weekday[]`),
+  // Optional same-day deadline (HH:MM, homes' local time), e.g. "marked off before 12pm".
+  dueByTime: text('due_by_time'),
+  definition: jsonb('definition').$type<CheckDefinition>().notNull(),
+  // Bumped on every edit; submissions record the version they were made against.
+  version: integer('version').notNull().default(1),
+  active: boolean('active').notNull().default(true),
+  createdAt,
+  updatedAt,
+});
+
+// A signed, immutable completion of one check occurrence at one home. The template is
+// snapshotted (`definition`, `templateName`, `templateVersion`) so later edits never rewrite
+// history. The rendered PDF lives in R2 (`storageKey`) or inline (`pdf`) — exactly one.
+export const checkSubmissions = pgTable(
+  'check_submissions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => checkTemplates.id, { onDelete: 'restrict' }),
+    homeId: uuid('home_id')
+      .notNull()
+      .references(() => homes.id, { onDelete: 'restrict' }),
+    dueDate: date('due_date').notNull(),
+    submittedById: uuid('submitted_by_id').references(() => users.id, { onDelete: 'set null' }),
+    // Name at signing time, kept even if the user is later removed.
+    submittedByName: text('submitted_by_name').notNull(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).defaultNow().notNull(),
+    templateName: text('template_name').notNull(),
+    templateVersion: integer('template_version').notNull(),
+    definition: jsonb('definition').$type<CheckDefinition>().notNull(),
+    answers: jsonb('answers').$type<CheckAnswers>().notNull(),
+    issueCount: integer('issue_count').notNull(),
+    late: boolean('late').notNull(),
+    storageKey: text('storage_key'),
+    pdf: bytea('pdf'),
+  },
+  (t) => [
+    unique('check_submissions_occurrence').on(t.templateId, t.homeId, t.dueDate),
+    index('check_submissions_home_date_idx').on(t.homeId, t.dueDate),
+    check('check_submissions_one_location', sql`(${t.pdf} IS NULL) <> (${t.storageKey} IS NULL)`),
+  ],
 );
 
 export const homesRelations = relations(homes, ({ many }) => ({

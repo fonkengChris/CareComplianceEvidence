@@ -43,6 +43,16 @@ MANAGER role), the activity list and compliance defaults — no sample data. The
 password is randomly generated and **printed once** on first run; copy it somewhere safe
 immediately. Re-running leaves an existing admin's password unchanged.
 
+Then seed the starting house checks (Daily Checks, Infection Prevention, Room Checks, Sharps,
+Weekly Checks). This is idempotent: checks managers have already edited are left alone.
+
+```bash
+bun run db:seed-checks
+```
+
+Signed house-check PDFs are stored in the same R2 bucket as photos (under `house-checks/`),
+or in Postgres when R2 isn't configured.
+
 ## 3b. File storage — Cloudflare R2 (recommended)
 
 Evidence photos go to a Cloudflare R2 bucket when it's configured; otherwise they're stored

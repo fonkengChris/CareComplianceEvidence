@@ -1,4 +1,5 @@
 import {
+  ClipboardCheck,
   Clock,
   ClipboardList,
   FileText,
@@ -36,7 +37,11 @@ const ACCOUNT: NavItem = { to: '/account', label: 'My account', icon: UserCog };
 function navItems(role: string | undefined): NavItem[] {
   // Auditors only have the Reports page (scoped to the service users they're approved for).
   if (role === 'AUDITOR') return [{ to: '/reports', label: 'Reports', icon: FileText }, ACCOUNT];
-  const items: NavItem[] = [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }];
+  const items: NavItem[] = [
+    { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+    // House checks: staff complete them on shift; managers review every home.
+    { to: '/checks', label: 'Checks', icon: ClipboardCheck },
+  ];
   // Key workers record like staff and also read reports for their own caseload.
   if (role === 'KEY_WORKER') items.push({ to: '/reports', label: 'Reports', icon: FileText });
   if (role === 'MANAGER') {

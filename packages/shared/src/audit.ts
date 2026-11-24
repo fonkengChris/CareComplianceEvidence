@@ -31,6 +31,8 @@ export const AUDIT_ENTITY_TYPES = [
   'AUDITOR_ACCESS',
   'SHIFT_SESSION',
   'HOME',
+  'CHECK_TEMPLATE',
+  'CHECK_SUBMISSION',
 ] as const;
 
 /**

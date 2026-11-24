@@ -9,6 +9,8 @@ import { db } from '../db';
 import {
   auditLogs,
   auditorAccessRequests,
+  checkSubmissions,
+  checkTemplates,
   dayEntries,
   homes,
   serviceUsers,
@@ -112,7 +114,7 @@ type AuditRow = typeof auditLogs.$inferSelect;
  * Resolve a human-readable label per audited entity for a set of rows, in two batched
  * lookups: service users by name; day entries as "<service user> — <day>" via their plan;
  * auditor access requests as "<auditor> → <service user>"; shift sessions as "<staff> @ <home>";
- * homes by name.
+ * homes by name; check templates by name; check submissions as "<check> @ <home> — <date>".
  * Returns a map keyed `"<entityType>:<entityId>"`; missing entities simply have no label.
  */
 async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string>> {
@@ -132,6 +134,12 @@ async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string
     .map((r) => r.entityId as string);
   const homeIds = rows
     .filter((r) => r.entityType === 'HOME' && r.entityId)
+    .map((r) => r.entityId as string);
+  const checkTemplateIds = rows
+    .filter((r) => r.entityType === 'CHECK_TEMPLATE' && r.entityId)
+    .map((r) => r.entityId as string);
+  const checkSubmissionIds = rows
+    .filter((r) => r.entityType === 'CHECK_SUBMISSION' && r.entityId)
     .map((r) => r.entityId as string);
 
   if (serviceUserIds.length > 0) {
@@ -178,6 +186,30 @@ async function resolveEntityLabels(rows: AuditRow[]): Promise<Map<string, string
       .from(homes)
       .where(inArray(homes.id, homeIds));
     for (const h of found) labels.set(`HOME:${h.id}`, h.name);
+  }
+
+  if (checkTemplateIds.length > 0) {
+    const found = await db
+      .select({ id: checkTemplates.id, name: checkTemplates.name })
+      .from(checkTemplates)
+      .where(inArray(checkTemplates.id, checkTemplateIds));
+    for (const t of found) labels.set(`CHECK_TEMPLATE:${t.id}`, t.name);
+  }
+
+  if (checkSubmissionIds.length > 0) {
+    const found = await db
+      .select({
+        id: checkSubmissions.id,
+        name: checkSubmissions.templateName,
+        home: homes.name,
+        dueDate: checkSubmissions.dueDate,
+      })
+      .from(checkSubmissions)
+      .innerJoin(homes, eq(homes.id, checkSubmissions.homeId))
+      .where(inArray(checkSubmissions.id, checkSubmissionIds));
+    for (const c of found) {
+      labels.set(`CHECK_SUBMISSION:${c.id}`, `${c.name} @ ${c.home} — ${c.dueDate}`);
+    }
   }
 
   return labels;

@@ -47,6 +47,10 @@ User (id, name, role, passwordHash)  — role: STAFF | KEY_WORKER | MANAGER | AU
 RefreshToken (id, userId, tokenHash, expiresAt, revokedAt)  — server-side, revocable
 ComplianceSettings (id, greenMin, amberMin, redOverPct, ...)  — configurable 🟢/🟡/🔴 boundaries
 AuditLog (who, what, from, to, timestamp)
+CheckTemplate (id, name, scheduleKind DAILY|WEEKLY, scheduleDays, dueByTime, definition jsonb, version, active)
+  └── CheckSubmission (id, templateId, homeId, dueDate, submittedById/Name, definition+answers snapshot,
+        issueCount, late, storageKey | pdf)  — signed, immutable; ≤1 per (template, home, dueDate)
+
 AuditorAccessRequest (id, auditorId, serviceUserId, status, reason, decidedById, decidedAt)
   — a manager-set audit grant: APPROVED = can audit, REVOKED = removed (PENDING/REJECTED are
     legacy from the old self-request flow); ≤1 open (pending/approved) row per pair
@@ -87,6 +91,19 @@ STAFF/KEY_WORKER only open/record week plans from the current week back `STAFF_H
 (default 2) — `isWithinStaffWindow` in `week-plan.service.ts`, enforced in `getById`, the staff list
 and `requireAssignment`. KEY_WORKER *reports* use the full caseload (unexpired direct + home
 membership), not shift-gated or windowed. Reach resolves centrally in `staff-assignment.service.ts`.
+
+**House checks** (`/checks`, `/api/house-checks`): manager-editable check templates (seeded from the
+paper forms by `db:seed-checks`) with ONE schedule for every home — daily, or weekly on chosen days,
+optional same-day `dueByTime` (Europe/London). An occurrence stays open until the next scheduled
+date; only the open one can be submitted (late after its day/due-by time; MISSED once the next
+begins). STAFF/KEY_WORKER complete checks only for their active-shift home; the server stamps the
+signer's name, snapshots the definition and renders the PDF once (server-side @react-pdf,
+`pdf/check-submission-document.tsx`) into R2 `house-checks/{homeId}/{id}.pdf` (bytea fallback).
+`flagWhen` answers are "report to management" issues — highlighted, never notifications. No
+edit/delete of submissions. AUDITOR has no access (home-level, not service-user records).
+Managers review on `/checks`: an all-homes overview (`GET /house-checks/overview` — still to do,
+missed and flagged in the last `CHECK_OVERVIEW_DAYS`; pure core in `check-occurrence.ts`), a
+per-home week grid, and an on-screen view of each signed check (`/checks/submissions/:id`).
 
 **Reads of resident records are audited.** Every successful open of a week plan, evidence photo,
 week report or period report writes a `VIEW` audit row (`recordView`, entityType SERVICE_USER,
@@ -150,6 +167,7 @@ bun run db:migrate    # apply committed migrations (auditable; preferred over db
 bun run db:create-admin # create admin (random pw, printed once) + activities/compliance defaults (idempotent)
 bun run db:seed-staff   # create staff logins from root staff-credentials.ods (random pw each, printed once; idempotent)
 bun run db:seed-homes   # create homes from root homes.csv (name + one-line address + active; skips existing names)
+bun run db:seed-checks  # create the starting house-check templates (house-check-defaults.ts; skips existing names)
 ```
 
 Migration workflow is **generate → migrate → create-admin** (versioned SQL, not `db:push`) for an

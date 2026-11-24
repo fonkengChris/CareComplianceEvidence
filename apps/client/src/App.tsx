@@ -3,7 +3,12 @@ import { ProtectedRoute } from './auth/ProtectedRoute';
 import AppShell from './components/AppShell';
 import AccountPage from './pages/AccountPage';
 import AuditHistoryPage from './pages/AuditHistoryPage';
+import CheckFormPage from './pages/CheckFormPage';
 import CheckInDisplayPage from './pages/CheckInDisplayPage';
+import CheckSubmissionPage from './pages/CheckSubmissionPage';
+import CheckTemplateEditorPage from './pages/CheckTemplateEditorPage';
+import CheckTemplatesPage from './pages/CheckTemplatesPage';
+import ChecksPage from './pages/ChecksPage';
 import DashboardPage from './pages/DashboardPage';
 import HomeDetailPage from './pages/HomeDetailPage';
 import HomeFormPage from './pages/HomeFormPage';
@@ -50,11 +55,17 @@ export default function App() {
             <Route path="/homes" element={<HomesPage />} />
             <Route path="/homes/:id" element={<HomeDetailPage />} />
             <Route path="/shifts" element={<ShiftsPage />} />
+            <Route path="/checks/templates" element={<CheckTemplatesPage />} />
+            <Route path="/checks/templates/new" element={<CheckTemplateEditorPage />} />
+            <Route path="/checks/templates/:id" element={<CheckTemplateEditorPage />} />
             <Route path="/week-plans/:id" element={<WeekPlanDetailPage />} />
           </Route>
           {/* Staff recording (Phase 5): STAFF/KEY_WORKER (scoped to their group) and managers. */}
           <Route element={<ProtectedRoute roles={['STAFF', 'KEY_WORKER', 'MANAGER']} />}>
             <Route path="/week-plans/:id/record" element={<RecordWeekPage />} />
+            <Route path="/checks" element={<ChecksPage />} />
+            <Route path="/checks/:templateId/:homeId/:dueDate" element={<CheckFormPage />} />
+            <Route path="/checks/submissions/:id" element={<CheckSubmissionPage />} />
           </Route>
           {/* Service user / user management and planning writes are MANAGER-only
               (server-enforced too). */}

@@ -227,6 +227,45 @@ describe('on-site check-in routes are role-scoped', () => {
   });
 });
 
+describe('house-check routes are role-scoped', () => {
+  it('403s AUDITOR on every house-check route', async () => {
+    const token = await tokenFor('AUDITOR');
+    expect(await request('GET', '/api/house-checks/templates', { token })).toBe(403);
+    expect(await request('GET', `/api/house-checks/homes/${SERVICE_USER}/due`, { token })).toBe(
+      403,
+    );
+    expect(await request('POST', '/api/house-checks/submissions', { token, body: {} })).toBe(403);
+    expect(
+      await request('GET', `/api/house-checks/submissions/${SERVICE_USER}/pdf`, { token }),
+    ).toBe(403);
+  });
+
+  it('lets only MANAGER edit templates or view the week grid', async () => {
+    for (const role of ['STAFF', 'KEY_WORKER'] as const) {
+      const token = await tokenFor(role);
+      expect(await request('POST', '/api/house-checks/templates', { token, body: {} })).toBe(403);
+      expect(
+        await request('PUT', `/api/house-checks/templates/${SERVICE_USER}`, { token, body: {} }),
+      ).toBe(403);
+      expect(
+        await request('PATCH', `/api/house-checks/templates/${SERVICE_USER}/active`, {
+          token,
+          body: {},
+        }),
+      ).toBe(403);
+      expect(await request('GET', `/api/house-checks/homes/${SERVICE_USER}/week`, { token })).toBe(
+        403,
+      );
+      expect(await request('GET', '/api/house-checks/overview', { token })).toBe(403);
+    }
+  });
+
+  it('401s without a token', async () => {
+    expect(await request('GET', '/api/house-checks/templates')).toBe(401);
+    expect(await request('POST', '/api/house-checks/submissions', { body: {} })).toBe(401);
+  });
+});
+
 describe('unauthenticated requests are rejected', () => {
   it('401s a protected route with no token', async () => {
     expect(await request('GET', '/api/service-users')).toBe(401);

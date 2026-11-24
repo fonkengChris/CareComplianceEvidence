@@ -13,6 +13,7 @@ import { authRouter } from './routes/auth.routes';
 import { checkInDisplayRouter } from './routes/check-in-display.routes';
 import { complianceRouter } from './routes/compliance.routes';
 import { homeRouter } from './routes/home.routes';
+import { houseCheckRouter } from './routes/house-check.routes';
 import { recordingGuidanceRouter } from './routes/recording-guidance.routes';
 import { serviceUserRouter } from './routes/service-user.routes';
 import { shiftRouter } from './routes/shift.routes';
@@ -58,6 +59,7 @@ api.use('/summary', summaryRouter);
 api.use('/audit-logs', auditRouter);
 api.use('/auditor-access', auditorAccessRouter);
 api.use('/ai', aiRouter);
+api.use('/house-checks', houseCheckRouter);
 app.use('/api', api);
 
 serveClient(app);
