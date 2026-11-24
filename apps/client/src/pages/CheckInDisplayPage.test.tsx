@@ -1,7 +1,8 @@
 import type { CheckInDisplayCode } from '@care/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it } from 'bun:test';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { mockApi } from '../lib/test-utils';
 import CheckInDisplayPage, { DISPLAY_TOKEN_KEY } from './CheckInDisplayPage';
 
@@ -29,7 +30,9 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <CheckInDisplayPage />
+      <MemoryRouter>
+        <CheckInDisplayPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -55,6 +58,9 @@ describe('CheckInDisplayPage', () => {
     expect(screen.getByText(/Riverside House/)).toBeDefined();
     expect(sentToken).toBe('display-token');
     expect(await screen.findByAltText('QR code to start your shift')).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Manager sign-in' }).getAttribute('href')).toBe(
+      '/login?manage',
+    );
   });
 
   it('asks for pairing when the device has no token', async () => {
@@ -74,5 +80,8 @@ describe('CheckInDisplayPage', () => {
     });
     renderPage();
     expect((await screen.findByRole('alert')).textContent).toMatch(/not paired/);
+    // Unpaired: the device forgets its token and becomes an ordinary one again.
+    await waitFor(() => expect(localStorage.getItem(DISPLAY_TOKEN_KEY)).toBeNull());
+    expect(screen.getByRole('link', { name: 'Sign in' })).toBeDefined();
   });
 });

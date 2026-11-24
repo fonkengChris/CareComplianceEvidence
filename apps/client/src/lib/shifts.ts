@@ -56,12 +56,43 @@ export async function revokeHomeDisplay(homeId: string, displayId: string): Prom
   await api.post(`/api/homes/${homeId}/displays/${displayId}/revoke`);
 }
 
-/** The current code for the home a display token is paired with (no user session needed). */
-export async function fetchDisplayCode(token: string): Promise<CheckInDisplayCode> {
-  const { data } = await api.get<CheckInDisplayCode>('/api/check-in-display/code', {
+/**
+ * The current code for the home a display token is paired with (no user session needed), or null
+ * when the token is no longer paired (401). The 401 is taken as an answer, not an error, so it
+ * skips the session-refresh retry — a work device has no user session.
+ */
+export async function fetchDisplayCode(token: string): Promise<CheckInDisplayCode | null> {
+  const res = await api.get<CheckInDisplayCode>('/api/check-in-display/code', {
     headers: { 'X-Display-Token': token },
+    validateStatus: (status) => (status >= 200 && status < 300) || status === 401,
   });
-  return data;
+  return res.status === 401 ? null : res.data;
+}
+
+/** Where a work device keeps its display token (per device; re-pair if it is lost). */
+export const DISPLAY_TOKEN_KEY = 'checkInDisplayToken';
+
+/**
+ * The work-device token stored on this device, or null. Storage can be blocked (private mode),
+ * so every access is guarded; the helpers below then degrade to "not a work device".
+ */
+export function storedDisplayToken(): string | null {
+  try {
+    return localStorage.getItem(DISPLAY_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Remember (or, with null, forget) this device's work-device token. Returns false if storage is blocked. */
+export function storeDisplayToken(token: string | null): boolean {
+  try {
+    if (token === null) localStorage.removeItem(DISPLAY_TOKEN_KEY);
+    else localStorage.setItem(DISPLAY_TOKEN_KEY, token);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The link that pairs a device as a home's check-in display (token in the hash, never sent to the server in logs). */

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '../auth/AuthContext';
 import { setAccessToken } from '../lib/api';
+import { storeDisplayToken } from '../lib/shifts';
 import { mockApi } from '../lib/test-utils';
 import LoginPage from './LoginPage';
 
@@ -32,13 +33,14 @@ function mockAuth(loginOk: boolean) {
   });
 }
 
-function renderLogin() {
+function renderLogin(entry = '/login') {
   return render(
-    <MemoryRouter initialEntries={['/login']}>
+    <MemoryRouter initialEntries={[entry]}>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<div>Dashboard Home</div>} />
+          <Route path="/check-in-display" element={<div>Check-in display</div>} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>,
@@ -56,6 +58,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  storeDisplayToken(null);
 });
 
 describe('LoginPage', () => {
@@ -72,5 +75,20 @@ describe('LoginPage', () => {
     submitCredentials();
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Invalid email or password');
+  });
+
+  it('shows the check-in code instead on a work device', async () => {
+    storeDisplayToken('display-token');
+    mockAuth(true);
+    renderLogin();
+    expect(await screen.findByText('Check-in display')).toBeDefined();
+  });
+
+  it('lets a manager sign in on a work device with ?manage', async () => {
+    storeDisplayToken('display-token');
+    mockAuth(true);
+    renderLogin('/login?manage');
+    submitCredentials();
+    expect(await screen.findByText('Dashboard Home')).toBeDefined();
   });
 });

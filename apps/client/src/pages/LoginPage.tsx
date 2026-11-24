@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import BrandLogo from '../components/BrandLogo';
 import { Button } from '../components/ui/button';
@@ -7,18 +7,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/input';
 import { PasswordInput } from '../components/ui/password-input';
 import { Label } from '../components/ui/label';
+import { storedDisplayToken } from '../lib/shifts';
 
-/** Email/password login. On success, routes to the dashboard; the guard handles roles. */
+/**
+ * Email/password login. On success, routes to the dashboard; the guard handles roles.
+ * On a work device (a paired check-in screen) it shows the check-in code instead, so opening the
+ * app there — or signing out — always returns to the code; `?manage` lets a manager sign in.
+ */
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [workDevice] = useState(
+    () => storedDisplayToken() !== null && !new URLSearchParams(location.search).has('manage'),
+  );
   // Return to the page that sent them here (same-app paths only), else the dashboard.
-  const from = (useLocation().state as { from?: string } | null)?.from;
+  const from = (location.state as { from?: string } | null)?.from;
   const returnTo = from?.startsWith('/') && !from.startsWith('//') ? from : '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  if (workDevice) return <Navigate to="/check-in-display" replace />;
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();

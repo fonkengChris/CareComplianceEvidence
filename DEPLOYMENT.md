@@ -74,19 +74,25 @@ in Postgres, which will fill Neon's free 0.5 GB quickly.
 
    Safe to re-run; already-moved photos are skipped. Old photos keep working until moved.
 
-## 3c. Check-in screens (required before staff can start shifts)
+## 3c. Work devices (required before staff can start shifts)
 
-Staff start a shift by entering the rotating 6-digit code shown on a **check-in screen** at
-their home. This proves they are on site, so a password alone never opens a home's records
-(GDPR). Set one up for each home before rollout. Until a home has one, a manager can start
-shifts for its staff from the home page.
+Staff start a shift by entering, or scanning, the rotating 6-digit code shown on a **work
+device** at their home. This proves they are on site, so a password alone never opens a home's
+records (GDPR). Set one up for each home before rollout. Until a home has one, a manager can
+start shifts for its staff from the home page.
 
-1. On a tablet/PC that stays at the home, sign in as a manager and open **Homes → the home →
-   Check-in screens**. Name the screen (e.g. "Office tablet") and click **Pair screen**.
-2. Click **Open on this device**, or open the one-time pairing link on the screen. Then sign out.
-   The screen keeps showing codes with nobody signed in. Its token is stored on that device
-   and can only fetch the code.
-3. Lost or replaced device: **Unpair** it on the home page. It stops working at once.
+A work device is not a user account. It holds its own token, which never expires and can only
+fetch its home's code. It can't open or record anything about residents.
+
+1. On the tablet/laptop that stays at the home, open the app, sign in as a manager and go to
+   **Homes → the home → Work devices**. Name it (e.g. "Office tablet") and click **Make this a
+   work device**. You are signed out and the device shows the code from then on. Opening the app
+   on it, including the installed app, always lands on the code.
+2. To pair a device you are not holding, click **Get a pairing link** and open that link on it.
+3. A manager can still sign in on a work device via **Manager sign-in** under the code. A banner
+   reminds them to sign out, and signing out returns the device to the code.
+4. Lost or replaced device: **Unpair** it on the home page. It stops working at once and
+   becomes an ordinary device again.
 
 Optional env tuning (defaults shown):
 

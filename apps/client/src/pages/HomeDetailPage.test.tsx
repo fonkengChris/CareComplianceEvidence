@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '../auth/AuthContext';
 import { setAccessToken } from '../lib/api';
+import { storedDisplayToken, storeDisplayToken } from '../lib/shifts';
 import { mockApi } from '../lib/test-utils';
 import HomeDetailPage from './HomeDetailPage';
 
@@ -93,6 +94,7 @@ beforeEach(() => {
       return new Response(null, { status: 204 });
     }
     if (url === '/api/shifts/start-for') return json(session);
+    if (url === '/api/auth/logout') return new Response(null, { status: 204 });
     if (url === `/api/assignments/home/${HOME_ID}`) return json(homeStaff);
     if (url === '/api/auth/refresh') {
       return json({
@@ -130,7 +132,10 @@ beforeEach(() => {
     return new Response(null, { status: 404 });
   });
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  storeDisplayToken(null);
+});
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -140,6 +145,7 @@ function renderPage() {
         <AuthProvider>
           <Routes>
             <Route path="/homes/:id" element={<HomeDetailPage />} />
+            <Route path="/check-in-display" element={<div>Check-in display</div>} />
           </Routes>
         </AuthProvider>
       </MemoryRouter>
@@ -185,23 +191,39 @@ describe('HomeDetailPage — assigning staff', () => {
   });
 });
 
-describe('HomeDetailPage — check-in screens', () => {
-  it('warns when no screen is paired, then pairs one and shows its one-time link', async () => {
+describe('HomeDetailPage — work devices', () => {
+  it('makes this device a work device: keeps its token, signs the manager out, shows the code', async () => {
     renderPage();
-    expect(await screen.findByText(/No check-in screen yet/)).toBeDefined();
-    fireEvent.change(screen.getByLabelText('New screen name'), {
+    fireEvent.change(await screen.findByLabelText('Device name'), {
       target: { value: 'Office tablet' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Pair screen' }));
-    const link = (await screen.findByLabelText('Pairing link')) as HTMLInputElement;
-    expect(link.value).toMatch(/\/check-in-display#token=raw-pairing-token$/);
+    fireEvent.click(screen.getByRole('button', { name: 'Make this a work device' }));
+    expect(await screen.findByText('Check-in display')).toBeDefined();
+    expect(storedDisplayToken()).toBe('raw-pairing-token');
+    await waitFor(() => expect(posts.some((p) => p.url === '/api/auth/logout')).toBe(true));
     expect(posts).toContainEqual({
       url: `/api/homes/${HOME_ID}/displays`,
       body: { name: 'Office tablet' },
     });
   });
 
-  it('unpairs a screen', async () => {
+  it('warns when no device is paired, then pairs another via its one-time link', async () => {
+    renderPage();
+    expect(await screen.findByText(/No work device yet/)).toBeDefined();
+    fireEvent.change(screen.getByLabelText('Device name'), {
+      target: { value: 'Office tablet' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Get a pairing link' }));
+    const link = (await screen.findByLabelText('Pairing link')) as HTMLInputElement;
+    expect(link.value).toMatch(/\/check-in-display#token=raw-pairing-token$/);
+    expect(storedDisplayToken()).toBeNull();
+    expect(posts).toContainEqual({
+      url: `/api/homes/${HOME_ID}/displays`,
+      body: { name: 'Office tablet' },
+    });
+  });
+
+  it('unpairs a work device', async () => {
     displays = [DISPLAY];
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Unpair Office tablet' }));

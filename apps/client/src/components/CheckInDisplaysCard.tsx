@@ -1,12 +1,15 @@
 import type { HomeDisplayPaired } from '@care/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { toErrorMessage } from '../lib/errors';
 import {
   displayPairingUrl,
   fetchHomeDisplays,
   pairHomeDisplay,
   revokeHomeDisplay,
+  storeDisplayToken,
 } from '../lib/shifts';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -25,12 +28,17 @@ function when(iso: string): string {
 }
 
 /**
- * Manager panel for a home's check-in screens. Staff can only start a shift with the rotating
- * code a paired screen shows, so pairing one (an office tablet/PC) is what lets this home's staff
- * check in. Pairing reveals a one-time link to open on that device; revoking stops it at once.
+ * Manager panel for a home's work devices (check-in screens). Staff can only start a shift with
+ * the rotating code a work device shows, so pairing one (an office tablet/laptop) is what lets this
+ * home's staff check in. A work device is not a user: it holds its own revocable token that can
+ * fetch the code and nothing else. Pair it either here on the device itself ("Make this a work
+ * device" — stores the token, signs the manager out, shows the code) or from another device via a
+ * one-time pairing link. Unpairing stops it at once.
  */
 export function CheckInDisplaysCard({ homeId }: { homeId: string }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [name, setName] = useState('');
   const [paired, setPaired] = useState<HomeDisplayPaired | null>(null);
 
@@ -41,11 +49,18 @@ export function CheckInDisplaysCard({ homeId }: { homeId: string }) {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['home-displays', homeId] });
 
   const pair = useMutation({
-    mutationFn: () => pairHomeDisplay(homeId, name.trim()),
-    onSuccess: (result) => {
-      setPaired(result);
+    mutationFn: (target: 'this-device' | 'link') =>
+      pairHomeDisplay(homeId, name.trim()).then((result) => ({ result, target })),
+    onSuccess: ({ result, target }) => {
       setName('');
-      return refresh();
+      if (target === 'link') {
+        setPaired(result);
+        return refresh();
+      }
+      // This device becomes the work device: keep its token, leave no manager session behind.
+      if (storeDisplayToken(result.token)) navigate('/check-in-display', { replace: true });
+      else window.location.assign(displayPairingUrl(result.token));
+      logout().catch(() => undefined);
     },
   });
   const revoke = useMutation({
@@ -59,12 +74,13 @@ export function CheckInDisplaysCard({ homeId }: { homeId: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Check-in screens</CardTitle>
+        <CardTitle>Work devices</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
-          Staff start a shift by entering the code shown on a check-in screen at this home, which
-          proves they are on site. Pair a tablet or PC that stays at the home.
+          A work device is a tablet or laptop that stays at this home and shows the check-in code
+          staff need to start a shift, which proves they are on site. It stays paired until you
+          unpair it, and it can't open or record anything about residents.
         </p>
         {(pair.isError || revoke.isError) && (
           <p role="alert" className="text-sm font-medium text-destructive">
@@ -74,8 +90,8 @@ export function CheckInDisplaysCard({ homeId }: { homeId: string }) {
 
         {displays.data && active.length === 0 && (
           <p className="text-sm font-medium text-warning">
-            No check-in screen yet — staff can't start a shift here until one is paired (or a
-            manager starts it for them).
+            No work device yet — staff can't start a shift here until one is paired (or a manager
+            starts it for them).
           </p>
         )}
         {active.length > 0 && (
@@ -108,8 +124,9 @@ export function CheckInDisplaysCard({ homeId }: { homeId: string }) {
           <div className="flex flex-col gap-2 rounded-md border border-border bg-muted p-3">
             <p className="text-sm">
               <Badge variant="success">Paired</Badge> Open this link on{' '}
-              <span className="font-medium">{paired.display.name}</span>. It is shown only once.
-              After opening it you can sign out on that device. The screen keeps working.
+              <span className="font-medium">{paired.display.name}</span>. It is shown only once. If
+              you are signed in on that device, sign out afterwards. The device keeps showing the
+              code.
             </p>
             <Input
               readOnly
@@ -140,25 +157,42 @@ export function CheckInDisplaysCard({ homeId }: { homeId: string }) {
         )}
 
         <form
-          className="flex flex-wrap items-end gap-2"
+          className="flex flex-col gap-2"
+          aria-label="Pair a work device"
           onSubmit={(e) => {
             e.preventDefault();
-            pair.mutate();
+            pair.mutate('this-device');
           }}
         >
-          <div className="flex min-w-56 flex-1 flex-col gap-1.5">
-            <Label htmlFor="display-name">New screen name</Label>
-            <Input
-              id="display-name"
-              value={name}
-              maxLength={100}
-              placeholder="e.g. Office tablet"
-              onChange={(e) => setName(e.target.value)}
-            />
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex min-w-56 flex-1 flex-col gap-1.5">
+              <Label htmlFor="display-name">Device name</Label>
+              <Input
+                id="display-name"
+                value={name}
+                maxLength={100}
+                placeholder="e.g. Office tablet"
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <Button type="submit" disabled={!name.trim() || pair.isPending}>
+              {pair.isPending ? 'Pairing…' : 'Make this a work device'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!name.trim() || pair.isPending}
+              onClick={() => pair.mutate('link')}
+            >
+              Get a pairing link
+            </Button>
           </div>
-          <Button type="submit" disabled={!name.trim() || pair.isPending}>
-            {pair.isPending ? 'Pairing…' : 'Pair screen'}
-          </Button>
+          <p className="text-xs text-muted-foreground">
+            On the tablet or laptop itself, choose{' '}
+            <span className="font-medium">Make this a work device</span>: you'll be signed out and
+            it will show the code from then on. To pair a different device, get a link and open it
+            there.
+          </p>
         </form>
       </CardContent>
     </Card>

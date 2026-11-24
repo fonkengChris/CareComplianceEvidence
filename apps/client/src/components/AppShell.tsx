@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABELS } from '../lib/roles';
+import { storedDisplayToken } from '../lib/shifts';
 import BrandLogo from './BrandLogo';
 import ThemeToggle from './ThemeToggle';
 import { Button } from './ui/button';
@@ -69,6 +70,8 @@ export default function AppShell() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Someone signed in on a work device (check-in screen) — remind them not to leave it signed in.
+  const [workDevice] = useState(() => storedDisplayToken() !== null);
 
   const links = navItems(user?.role);
 
@@ -141,6 +144,20 @@ export default function AppShell() {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+          {workDevice && (
+            <div
+              role="status"
+              className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm"
+            >
+              <span>
+                This is a work device. Sign out when you're done so it goes back to showing the
+                check-in code.
+              </span>
+              <Button type="button" size="sm" onClick={() => logout()}>
+                Sign out
+              </Button>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

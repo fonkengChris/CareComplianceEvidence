@@ -39,7 +39,8 @@ ShiftSession (id, staffId, homeId, startedAt, expiresAt, endedAt, endedById)
   — time-bound home access: ≤1 open row per staff; active = not ended AND expiresAt > now
 Home (…, checkInSecret)  — server-only HMAC key for the rotating on-site check-in code; never serialised
 HomeDisplayDevice (id, homeId, name, tokenHash, createdById, lastSeenAt, revokedAt)
-  — manager-paired check-in screen; its token can only fetch the home's current code
+  — a "work device": manager-paired check-in screen (NOT a user/role); its never-expiring token
+    can only fetch the home's current code
 StaffAssignment (id, staffId, serviceUserId, endsAt)  — direct link; lapses at endsAt unless renewed
 
 ActivityType (id, name, active)  — standardised list, admin-maintained
@@ -77,9 +78,12 @@ Rules to preserve when touching this model:
 home only makes STAFF/KEY_WORKER *eligible*; they reach that home's service users (dashboard, week
 plans, recording) only while they hold an active `ShiftSession` there. Self-starting a shift needs the
 home's **rotating 6-digit on-site check-in code** (TOTP-style HMAC of the server-only
-`homes.checkInSecret`, `auth/check-in-code.ts`) shown on a manager-paired **check-in screen**
+`homes.checkInSecret`, `auth/check-in-code.ts`) shown on a manager-paired **work device**
 (`HomeDisplayDevice`, public `/check-in-display` page, authenticated only by its own revocable
-`X-Display-Token`, which can fetch the code and nothing else). Wrong codes are audited
+`X-Display-Token`, which can fetch the code and nothing else). A work device is deliberately not
+a user role: "Make this a work device" on the home page stores the token on that device and signs
+the manager out; `/login` on a device holding a token redirects to the code (`?manage` lets a
+manager sign in); a 401 from the code endpoint (unpaired) clears the token. Wrong codes are audited
 (SHIFT_CODE_FAILED) and lock out after `CHECK_IN_MAX_FAILURES`. A manager may start a shift for
 someone (`POST /shifts/start-for`, audited with reason) when a screen isn't working. Shifts are audited
 (SHIFT_START/SHIFT_END), capped at `SHIFT_MAX_HOURS` (default 12), and ended on logout/deactivation or
