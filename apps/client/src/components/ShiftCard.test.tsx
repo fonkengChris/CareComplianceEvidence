@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { mockApi } from '../lib/test-utils';
+import { checkInFromScan } from '../lib/shifts';
 import { ShiftCard } from './ShiftCard';
 
 /**
@@ -106,6 +107,25 @@ describe('ShiftCard', () => {
     const code = (await screen.findByLabelText('Check-in code')) as HTMLInputElement;
     expect(code.value).toBe('246810');
     expect((screen.getByLabelText('Home') as HTMLSelectElement).value).toBe(HOME_B.id);
+  });
+
+  it('opens the in-app scanner and falls back to typing when there is no camera', async () => {
+    setup({ shift: null, homes: [HOME_A] });
+    renderCard();
+    fireEvent.click(await screen.findByRole('button', { name: 'Scan QR code' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/type the code instead/);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel scan' }));
+    expect(screen.getByRole('button', { name: 'Scan QR code' })).toBeDefined();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('reads the check-in from a scanned display QR link only', () => {
+    expect(checkInFromScan(`https://care.example/?checkin=${HOME_B.id}.135790`)).toEqual({
+      homeId: HOME_B.id,
+      code: '135790',
+    });
+    expect(checkInFromScan('https://care.example/?checkin=nope')).toBeNull();
+    expect(checkInFromScan('not a link')).toBeNull();
   });
 
   it('shows the server message for a wrong code', async () => {

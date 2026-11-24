@@ -20,6 +20,11 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
+        // Links into the app (e.g. a check-in screen's QR, `/?checkin=…`) open in the installed
+        // app where the platform allows it (Android/desktop Chrome), reusing an open window.
+        // iOS never routes links to a home-screen app — the in-app "Scan QR code" covers that.
+        handle_links: 'preferred',
+        launch_handler: { client_mode: ['navigate-existing', 'auto'] },
         theme_color: '#173327',
         background_color: '#eff3ee',
         icons: [

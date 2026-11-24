@@ -84,6 +84,15 @@ export function parseCheckIn(value: string | null): { homeId: string; code: stri
   return match ? { homeId: match[1]!, code: match[2]! } : null;
 }
 
+/** Read the check-in from the text of a scanned display QR (a `checkInUrl` link), or null. */
+export function checkInFromScan(text: string): { homeId: string; code: string } | null {
+  try {
+    return parseCheckIn(new URL(text).searchParams.get('checkin'));
+  } catch {
+    return null;
+  }
+}
+
 /** End a shift session (own for staff, any for a manager). No body is returned (204). */
 export async function endShift(sessionId: string): Promise<void> {
   await api.post(`/api/shifts/${sessionId}/end`);

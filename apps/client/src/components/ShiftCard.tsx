@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock } from 'lucide-react';
+import { Clock, QrCode } from 'lucide-react';
 import { useState } from 'react';
 import { toErrorMessage } from '../lib/errors';
 import {
+  checkInFromScan,
   endShift,
   fetchMyHomes,
   fetchMyShift,
@@ -10,6 +11,7 @@ import {
   shiftTime,
   startShift,
 } from '../lib/shifts';
+import { QrScanner } from './QrScanner';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Input } from './ui/input';
@@ -20,7 +22,9 @@ import { Select } from './ui/select';
  * Shift check-in for staff. Home membership alone does not open a home's residents: the staff
  * member starts a shift here with the 6-digit code shown on the home's check-in display (proof
  * they are on site; audited, auto-expiring server-side) and ends it when they leave. Scanning the
- * display's QR opens the app with `?checkin=<home>.<code>`, which prefills both.
+ * display's QR opens the app with `?checkin=<home>.<code>`, which prefills both; "Scan QR code"
+ * reads the same QR with the camera from inside the app (the phone's camera app opens the browser,
+ * not the installed app).
  * Starting/ending refreshes the assignment and week-plan lists, which the server scopes to the
  * active shift. Renders nothing for staff with no home (direct assignments only).
  */
@@ -30,6 +34,20 @@ export function ShiftCard({ checkIn = null }: { checkIn?: string | null }) {
   const [scanned] = useState(() => parseCheckIn(checkIn));
   const [homeId, setHomeId] = useState(scanned?.homeId ?? '');
   const [code, setCode] = useState(scanned?.code ?? '');
+  const [scanning, setScanning] = useState(false);
+  const [scanHint, setScanHint] = useState<string | null>(null);
+
+  const onScan = (text: string) => {
+    const found = checkInFromScan(text);
+    if (!found) {
+      setScanHint("That isn't a check-in QR code — scan the code on the home's check-in screen.");
+      return;
+    }
+    setHomeId(found.homeId);
+    setCode(found.code);
+    setScanHint(null);
+    setScanning(false);
+  };
 
   // Re-poll so the card flips to "off shift" shortly after the server-side expiry.
   const shift = useQuery({
@@ -130,7 +148,23 @@ export function ShiftCard({ checkIn = null }: { checkIn?: string | null }) {
                     ? `Start shift at ${activeHomes[0]!.name}`
                     : 'Start shift'}
               </Button>
+              {!scanning && (
+                <Button type="button" variant="outline" onClick={() => setScanning(true)}>
+                  <QrCode className="size-4" />
+                  Scan QR code
+                </Button>
+              )}
             </div>
+            {scanning && (
+              <QrScanner
+                onScan={onScan}
+                onClose={() => {
+                  setScanning(false);
+                  setScanHint(null);
+                }}
+              />
+            )}
+            {scanHint && <p className="text-sm text-muted-foreground">{scanHint}</p>}
           </>
         )}
         {error && (
